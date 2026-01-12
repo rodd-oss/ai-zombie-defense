@@ -1,0 +1,76 @@
+{
+  "name": "add-template",
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/js/*",
+    "!packages/js/**/test/**",
+    "!packages/js/**/template/**"
+  ],
+  "devDependencies": {
+    "@eslint/css": "^0.14.1",
+    "@eslint/js": "^9.39.1",
+    "@eslint/json": "^0.14.0",
+    "@eslint/markdown": "^7.5.1",
+    "@types/bun": "latest",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.6.2",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "lint-staged": "^16.2.7",
+    "prettier": "3.7.4",
+    "typescript-eslint": "^8.49.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "task": "bun run ./scripts/task.ts",
+    "count-lines": "bun run ./scripts/count-lines.ts"
+  },
+  "tasks": {
+    "check": "--concurrent ts:check rust:check python:check",
+    "fix": "--concurrent ts:fix rust:fix python:fix",
+    "test": "--concurrent ts:test rust:test python:test",
+    "lint": "--concurrent ts:lint rust:lint python:lint",
+    "ts:lint": "eslint",
+    "ts:lint:fix": "eslint --fix",
+    "ts:format:check": "prettier --check .",
+    "ts:format:write": "prettier --write .",
+    "ts:typecheck": "tsc --noEmit",
+    "ts:check": "--concurrent ts:lint ts:format:check ts:typecheck",
+    "ts:fix": "ts:lint:fix ts:format:write",
+    "ts:test": "bun test",
+    "rust:lint": "cargo clippy --all-targets -- -D warnings",
+    "rust:lint:fix": "cargo clippy --fix --allow-dirty --allow-staged",
+    "rust:format:check": "cargo fmt --all -- --check",
+    "rust:format:write": "cargo fmt --all",
+    "rust:typecheck": "cargo check --all-targets",
+    "rust:check": "--concurrent rust:lint rust:format:check rust:typecheck",
+    "rust:fix": "rust:lint:fix rust:format:write",
+    "rust:test": "cargo test",
+    "python:lint": "uvx ruff check",
+    "python:lint:fix": "uvx ruff check --fix",
+    "python:format:check": "uvx ruff format --check",
+    "python:format:write": "uvx ruff format",
+    "python:check": "--concurrent python:lint python:format:check",
+    "python:fix": "python:lint:fix python:format:write",
+    "python:test": "echo 'No Python tests configured'",
+    "go:lint": "go vet ./...",
+    "go:check": "go vet ./...",
+    "go:test": "go test ./..."
+  },
+  "lint-staged": {
+    "**/*.{js,mjs,cjs,ts,mts,cts,vue,json,jsonc,json5,md,css}": [
+      "prettier --list-different",
+      "eslint"
+    ]
+  },
+  "dependencies": {
+    "@types/glob": "^9.0.0",
+    "glob": "^13.0.0"
+  }
+}
