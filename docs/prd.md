@@ -15,17 +15,17 @@ AI Zombie Defence is an online multiplayer co-op game via dedicated servers wher
 ## Progression System
 
 - **Cosmetic Progression**: Earn experience (XP) from killing enemies and completing maps. Each level unlocks new cosmetic items (skins, emotes, etc.).
-- **In-Game Upgrades**: During each map, players earn skill points that can be spent on temporary upgrades (e.g., +10% health, faster reload, building durability). These upgrades reset at the end of the map.
+- **In-Game Upgrades**: During each map, players earn skill points from killing enemies and completing waves that can be spent on temporary upgrades (e.g., +10% health, faster reload, building durability). These upgrades reset at the end of the map.
 - **Weapon Access**: All weapons are available in the map's shop; players purchase them using scrap earned during the match.
 - **Building Access**: All defensive structures are available in the map's shop; players purchase them using scrap earned during the match.
 - **Prestige**: After reaching max level, players can prestige for exclusive cosmetics.
 
 ## Rewards Economy
 
-- **Scrap**: Common currency earned from killing enemies. Used for in‑map purchases (weapons, ammo, buildings).
+- **Scrap**: Common currency earned from killing enemies. Used for in‑map purchases (weapons, ammo, buildings, building upgrades).
 - **Data**: Rare currency earned from completing maps. Used for cosmetics.
 - **Loot Drops**: Special enemies have a chance to drop random weapon skins or cosmetic items.
-- **Shop**: In‑map shop sells consumables and temporary gear. Cosmetics are purchased from a main menu store using Data currency.
+- **Shop**: In‑map shop sells consumables, temporary gear, and skill point upgrades (purchased with skill points). Cosmetics are purchased from a main menu store using Data currency.
 
 ## Player Interactions
 
@@ -48,10 +48,11 @@ AI Zombie Defence is an online multiplayer co-op game via dedicated servers wher
   - Spitter: Ranged acid attack.
   - Vampire: Drains player health, can teleport short distances.
 - **AI Behavior**: Enemies pathfind to the active POI, attacking players who block their path. Special enemies may prioritize players.
+- **Wave Scaling**: Wave difficulty scales with the number of players to maintain challenge balance.
 - **Building Mechanics**:
-  - Walls: Block enemy movement, can be repaired.
-  - Turrets: Auto‑target enemies in range.
-  - Traps: Slow or damage enemies that pass over them.
+- Walls: Block enemy movement, can be repaired.
+- Turrets: Auto‑target enemies in range.
+- Traps: Slow or damage enemies that pass over them.
 - **Health System**: Players have health and optional armor. Healing items (medkits) restore health over time.
 
 ## Non‑Functional Requirements

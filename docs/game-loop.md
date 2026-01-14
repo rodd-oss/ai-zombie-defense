@@ -21,12 +21,12 @@
 
 Each map contains **3 Points of Interest (POIs)** that must be defended sequentially. POIs are objectives such as generators, data terminals, or barricades.
 
-#### Preparation Phase (60 seconds)
+#### Preparation Phase (60 seconds before each wave)
 
 - Players start with a default amount of **Scrap** currency.
 - **Building**: Place defensive structures (walls, turrets, traps) within build zones.
 - **Shopping**: Buy weapons, ammo, and healing items from a temporary shop.
-- **Skill Upgrades**: Purchase non‑persistent in‑game skill upgrades that last only for the current map.
+- **Skill Upgrades**: Purchase non‑persistent in‑game skill upgrades using skill points that last only for the current map.
 - **Repair**: Repair damaged structures from previous waves (if any).
 - **Strategy**: Team can allocate resources and assign roles.
 
@@ -55,5 +55,5 @@ Each map contains **3 Points of Interest (POIs)** that must be defended sequenti
 
 1. **Server Browser** → Player selects a dedicated server
 2. **Connect to Server** → Player joins the server and enters the current map
-3. **Map** → Preparation phase (60 seconds) → Wave phase (defend 3 POIs × 3 waves)
+3. **Map** → For each wave: Preparation phase (60 seconds) → Wave phase (defend active POI) across 3 POIs × 3 waves total
 4. **Map Transition** → After map completion or failure, a 15‑second timeout begins. During this timeout players may disconnect to return to the server browser. After the timeout, the server automatically changes to the next map in rotation. Players who remain on the server will continue to the next map.
