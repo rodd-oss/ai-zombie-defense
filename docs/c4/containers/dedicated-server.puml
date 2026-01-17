@@ -1,0 +1,63 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component diagram for Dedicated Server (Server-Authoritative)
+
+' External containers (from container diagram)
+Container_Ext(game_client, "Game Client", "Godot", "Desktop application providing game interface")
+Container_Ext(backend_api, "Backend API", "Go", "REST API for accounts, progression, server registration, loot system, and match history")
+
+' Dedicated Server container boundary with internal components
+Container_Boundary(dedicated_server, "Dedicated Server") {
+  Component(game_simulation, "Game Simulation", "GDScript", "Authoritative game state, physics, and entity management")
+  Component(network_server, "Network Server", "GDScript", "Handles client connections, game protocol (UDP), replication")
+  Component(ai_controller, "AI Controller", "GDScript", "Manages enemy spawns, pathfinding, and behavior")
+  Component(wave_manager, "Wave Manager", "GDScript", "Controls wave progression, difficulty scaling, POI activation")
+  Component(building_validator, "Building Validator", "GDScript", "Validates building placement, upgrades, and repair")
+  Component(economy_validator, "Economy Validator", "GDScript", "Validates currency transactions, purchases, and rewards")
+  Component(combat_validator, "Combat Validator", "GDScript", "Validates damage, health, and combat actions")
+  Component(match_manager, "Match Manager", "GDScript", "Orchestrates match lifecycle, phases, and transitions")
+  Component(backend_api_client, "Backend API Client", "GDScript", "Communicates with Backend API via HTTPS for registration, match results, and loot requests")
+}
+
+' Server-authoritative relationships
+' Network Server receives client inputs, validates through appropriate validators
+Rel(network_server, game_simulation, "Updates authoritative game state", "function calls")
+Rel(network_server, building_validator, "Validates building actions", "function calls")
+Rel(network_server, economy_validator, "Validates purchases and transactions", "function calls")
+Rel(network_server, combat_validator, "Validates combat actions", "function calls")
+
+' Game Simulation coordinates core gameplay
+Rel(game_simulation, ai_controller, "Updates enemy positions and states", "function calls")
+Rel(game_simulation, wave_manager, "Triggers wave events, checks POI health", "function calls")
+Rel(game_simulation, match_manager, "Reports game state changes", "function calls")
+
+' Wave and AI management
+Rel(wave_manager, ai_controller, "Controls enemy spawns and composition", "function calls")
+Rel(wave_manager, match_manager, "Signals wave completion/failure", "function calls")
+Rel(wave_manager, backend_api_client, "Requests loot drops for special enemy defeats", "function calls")
+
+' Match lifecycle
+Rel(match_manager, backend_api_client, "Reports match results, player stats, and requests loot rewards", "function calls")
+Rel(match_manager, network_server, "Broadcasts match state to clients", "function calls")
+
+' Validation systems interact with game simulation
+Rel(building_validator, game_simulation, "Applies validated building changes", "function calls")
+Rel(economy_validator, game_simulation, "Applies validated currency changes", "function calls")
+Rel(combat_validator, game_simulation, "Applies validated combat results", "function calls")
+
+' External connections
+Rel(network_server, game_client, "Game protocol (UDP)", "network")
+Rel(backend_api_client, backend_api, "HTTPS", "network")
+
+' Server registration and health reporting
+Rel(match_manager, backend_api_client, "Registers server, reports health", "function calls")
+
+' Loot system integration via Backend API loot_service
+' Diagram references
+' See context diagram: docs/c4/context.puml
+' See container diagram: docs/c4/container.puml
+' See Game Client components: docs/c4/containers/game-client.puml
+' (This is a component diagram for the "Dedicated Server" container)
+
+@enduml

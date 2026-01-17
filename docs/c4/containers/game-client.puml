@@ -1,0 +1,74 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component diagram for Game Client
+
+' External containers (from container diagram)
+Container_Ext(dedicated_server, "Dedicated Server", "Godot", "Linux server hosting game sessions")
+Container_Ext(backend_api, "Backend API", "Go", "REST API for accounts, progression, server registration, loot system, and match history")
+
+' Game Client container boundary with internal components
+Container_Boundary(game_client, "Game Client") {
+  Component(server_browser, "Server Browser", "GDScript", "Lists available servers, connects to selected server")
+  Component(character_customization, "Character Customization", "GDScript", "Manages cosmetic customization and loadouts")
+  Component(shop_component, "Shop Component", "GDScript", "Handles in-game and main menu store purchases")
+  Component(settings_component, "Settings Component", "GDScript", "Manages user preferences and configuration")
+  Component(gameplay_controller, "Gameplay Controller", "GDScript", "Orchestrates gameplay systems and match phases")
+  Component(combat_system, "Combat System", "GDScript", "Handles weapons, damage, health, and combat mechanics")
+  Component(building_system, "Building System", "GDScript", "Manages defensive structure placement, upgrades, and repair")
+  Component(economy_manager, "Economy Manager", "GDScript", "Tracks scrap and data currencies, handles transactions")
+  Component(progression_manager, "Progression Manager", "GDScript", "Manages skill points, cosmetic unlocks, and progression")
+  Component(network_client, "Network Client", "GDScript", "Communicates with Dedicated Server via UDP game protocol")
+  Component(backend_api_client, "Backend API Client", "GDScript", "Communicates with Backend API via HTTPS for accounts and data")
+  Component(local_storage, "Local Storage", "GDScript", "Manages local save data, settings, and cached assets")
+}
+
+' Relationships between components
+' Server Browser interactions
+Rel(server_browser, backend_api_client, "Queries server list", "function calls")
+Rel(server_browser, network_client, "Initiates connection to selected server", "function calls")
+Rel(server_browser, gameplay_controller, "Starts gameplay after connection", "function calls")
+
+' Character Customization interactions
+Rel(character_customization, progression_manager, "Selects equipped cosmetics", "function calls")
+Rel(character_customization, backend_api_client, "Loads/saves customization data", "function calls")
+
+' Shop interactions
+Rel(shop_component, economy_manager, "Makes purchases, displays currencies", "function calls")
+Rel(shop_component, progression_manager, "Purchases cosmetics", "function calls")
+Rel(shop_component, gameplay_controller, "Accessed during preparation phase", "function calls")
+
+' Settings interactions
+Rel(settings_component, local_storage, "Loads/saves preferences", "function calls")
+
+' Gameplay interactions
+Rel(gameplay_controller, combat_system, "Orchestrates combat", "function calls")
+Rel(gameplay_controller, building_system, "Orchestrates building", "function calls")
+Rel(gameplay_controller, economy_manager, "Updates currencies based on events", "function calls")
+Rel(gameplay_controller, progression_manager, "Updates skill points and progression", "function calls")
+
+' Combat and building interactions
+Rel(combat_system, economy_manager, "Awards scrap for kills", "function calls")
+Rel(building_system, economy_manager, "Deducts scrap for purchases", "function calls")
+
+' Network interactions
+Rel(gameplay_controller, network_client, "Sends/receives game state updates", "function calls")
+Rel(network_client, dedicated_server, "Game protocol (UDP)", "network")
+
+' Backend API interactions
+Rel(progression_manager, backend_api_client, "Fetches/saves progression data", "function calls")
+Rel(economy_manager, backend_api_client, "Fetches/saves currency balances", "function calls")
+Rel(backend_api_client, backend_api, "HTTPS", "network")
+
+' Local storage interactions
+Rel(progression_manager, local_storage, "Caches progression data", "function calls")
+Rel(economy_manager, local_storage, "Caches currency data", "function calls")
+
+' Note: Godot engine subsystems (rendering, audio, physics, input) are not shown as they are platform provided
+
+' Diagram references
+' See context diagram: docs/c4/context.puml
+' See container diagram: docs/c4/container.puml
+' (This is a component diagram for the "Game Client" container)
+
+@enduml

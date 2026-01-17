@@ -1,0 +1,52 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container diagram for AI Zombie Defence
+
+' Persons and external systems
+Person(player, "Player", "A human player who wants to defend against zombie hordes")
+System_Ext(zapuskalka, "zapuskalka", "Open-source game distribution platform (https://github.com/rodd-oss/zapuskalka)")
+
+' AI Zombie Defence system boundary with internal containers
+System_Boundary(ai_zombie_defence, "AI Zombie Defence") {
+  Container(game_client, "Game Client", "Godot", "Desktop application providing game interface, rendering, and input handling")
+  Container(dedicated_server, "Dedicated Server", "Godot", "Linux server hosting game sessions, simulation, and networking")
+  Container(backend_api, "Backend API", "Go", "REST API for account management, progression, match history, loot system, and server registration/discovery")
+  ContainerDb(database, "Database", "SQLite", "Stores player accounts, progression, cosmetics, and match history")
+  Container(leaderboard_website, "Leaderboard Website", "HTML/JavaScript", "Web application displaying player rankings and statistics")
+}
+
+' Relationships
+' Player uses Game Client
+Rel(player, game_client, "Uses", "Game client, server browser, progression")
+
+' Game Client communicates with Dedicated Server for gameplay
+Rel(game_client, dedicated_server, "Connects to", "Game protocol (UDP)")
+
+' Game Client communicates with Backend API for account, progression, server list, and leaderboards
+Rel(game_client, backend_api, "Authenticates, fetches progression, queries server list, fetches leaderboards", "HTTPS")
+
+' Dedicated Server registers with Backend API and updates match results
+Rel(dedicated_server, backend_api, "Registers, updates match results, player stats", "HTTPS")
+
+' Backend API reads/writes to Database
+Rel(backend_api, database, "Reads from and writes to", "SQL")
+
+' zapuskalka distributes Game Client
+Rel(zapuskalka, game_client, "Distributes game client", "Updates, authentication (optional)")
+
+' Player views leaderboard website
+Rel(player, leaderboard_website, "Views", "HTTPS")
+
+' Leaderboard website queries Backend API for data
+Rel(leaderboard_website, backend_api, "Queries for leaderboard data", "HTTPS")
+
+' Diagram references
+' See context diagram: docs/c4/context.puml
+' See component diagrams: docs/c4/containers/*.puml
+' - Game Client components: docs/c4/containers/game-client.puml
+' - Dedicated Server components: docs/c4/containers/dedicated-server.puml
+' - Backend API components: docs/c4/containers/backend-api.puml
+' - (More component diagrams can be added for other containers)
+
+@enduml

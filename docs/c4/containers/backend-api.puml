@@ -1,0 +1,70 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component diagram for Backend API
+
+' External containers (from container diagram)
+Container_Ext(game_client, "Game Client", "Godot", "Desktop application providing game interface")
+Container_Ext(dedicated_server, "Dedicated Server", "Godot", "Linux server hosting game sessions")
+Container_Ext(leaderboard_website, "Leaderboard Website", "HTML/JavaScript", "Web application displaying rankings")
+ContainerDb(database, "Database", "SQLite", "Stores player accounts, progression, cosmetics, and match history")
+
+' Backend API container boundary with internal components
+Container_Boundary(backend_api, "Backend API") {
+  Component(auth_service, "Authentication Service", "Go", "Handles user authentication, session management, and JWT tokens")
+  Component(account_service, "Account Service", "Go", "Manages player accounts, profiles, and basic information")
+  Component(progression_service, "Progression Service", "Go", "Manages player levels, XP, prestige, statistics, cosmetic unlocks, currency balances, and loadouts")
+  Component(match_history_service, "Match History Service", "Go", "Stores and retrieves match results, player statistics")
+  Component(server_registry_service, "Server Registry Service", "Go", "Manages dedicated server registration, discovery, and health checks")
+  Component(leaderboard_service, "Leaderboard Service", "Go", "Calculates and serves player rankings and statistics")
+  Component(loot_service, "Loot Service", "Go", "Manages loot table configuration, weighted drops, and cosmetic reward distribution")
+  Component(api_gateway, "API Gateway", "Go", "Routes HTTP requests to appropriate services, handles rate limiting, and CORS")
+  Component(sqlc_generated, "SQLC Generated Code", "Go", "Type-safe database access layer generated from SQL schemas")
+}
+
+' Internal service relationships
+' API Gateway routes requests to appropriate services
+Rel(api_gateway, auth_service, "Routes authentication requests", "HTTP/REST")
+Rel(api_gateway, account_service, "Routes account-related requests", "HTTP/REST")
+Rel(api_gateway, progression_service, "Routes progression requests", "HTTP/REST")
+Rel(api_gateway, match_history_service, "Routes match history requests", "HTTP/REST")
+Rel(api_gateway, server_registry_service, "Routes server registry requests", "HTTP/REST")
+Rel(api_gateway, leaderboard_service, "Routes leaderboard requests", "HTTP/REST")
+Rel(api_gateway, loot_service, "Routes loot configuration requests", "HTTP/REST")
+
+' Service interactions
+Rel(auth_service, account_service, "Validates user access to accounts", "function calls")
+Rel(progression_service, match_history_service, "Updates progression based on match results", "function calls")
+Rel(leaderboard_service, match_history_service, "Queries match data for rankings", "function calls")
+Rel(server_registry_service, match_history_service, "Associates servers with match results", "function calls")
+Rel(progression_service, loot_service, "Requests loot drops for players", "function calls")
+
+' Database access through SQLC generated layer
+Rel(auth_service, sqlc_generated, "Queries user credentials and sessions", "function calls")
+Rel(account_service, sqlc_generated, "Queries account data", "function calls")
+Rel(progression_service, sqlc_generated, "Queries progression and currency data", "function calls")
+Rel(match_history_service, sqlc_generated, "Queries match history and statistics", "function calls")
+Rel(server_registry_service, sqlc_generated, "Queries server registration data", "function calls")
+Rel(leaderboard_service, sqlc_generated, "Queries aggregated statistics", "function calls")
+Rel(loot_service, sqlc_generated, "Queries loot tables and cosmetic items", "function calls")
+Rel(sqlc_generated, database, "SQL", "database connection")
+
+' External connections
+Rel(game_client, api_gateway, "HTTPS", "network")
+Rel(dedicated_server, api_gateway, "HTTPS", "network")
+Rel(leaderboard_website, api_gateway, "HTTPS", "network")
+
+' Specific API endpoints
+' Game Client uses: authentication, progression, cosmetics, server list, leaderboards
+' Dedicated Server uses: registration, match result submission, health reporting, loot table configuration
+' Leaderboard Website uses: leaderboard data queries
+' Admin tools: loot table management, cosmetic catalog management
+
+' Diagram references
+' See context diagram: docs/c4/context.puml
+' See container diagram: docs/c4/container.puml
+' See Game Client components: docs/c4/containers/game-client.puml
+' See Dedicated Server components: docs/c4/containers/dedicated-server.puml
+' (This is a component diagram for the "Backend API" container)
+
+@enduml

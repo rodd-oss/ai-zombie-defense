@@ -1,0 +1,330 @@
+@startuml
+title Database Entity-Relationship Diagram
+' Generated from PRD requirements for AI Zombie Defence
+' See: docs/prd.md and docs/game-loop.md
+
+hide circle
+skinparam linetype ortho
+left to right direction
+
+' ========== ENTITIES ==========
+
+entity "players" {
+  *player_id : INTEGER <<PK>>
+  --
+  username : VARCHAR(32) <<UNIQUE>>
+  email : VARCHAR(255) <<UNIQUE>>
+  password_hash : VARCHAR(255)
+  created_at : TIMESTAMP
+  last_login_at : TIMESTAMP
+  is_banned : BOOLEAN
+  banned_reason : TEXT
+  banned_until : TIMESTAMP
+}
+
+entity "sessions" {
+  *session_id : INTEGER <<PK>>
+  --
+  player_id : INTEGER <<FK>>
+  token : VARCHAR(512) <<UNIQUE>>
+  expires_at : TIMESTAMP
+  created_at : TIMESTAMP
+  ip_address : VARCHAR(45)
+  user_agent : TEXT
+}
+
+entity "player_progression" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  --
+  level : INTEGER
+  experience : INTEGER
+  prestige_level : INTEGER
+  data_currency : INTEGER
+  total_matches_played : INTEGER
+  total_waves_survived : INTEGER
+  total_kills : INTEGER
+  total_deaths : INTEGER
+  total_scrap_earned : INTEGER
+  total_data_earned : INTEGER
+  updated_at : TIMESTAMP
+}
+
+entity "player_settings" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  --
+  key_bindings : TEXT
+  mouse_sensitivity : DECIMAL(3,2)
+  ui_scale : DECIMAL(3,2)
+  color_blind_mode : BOOLEAN
+  subtitles_enabled : BOOLEAN
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "loadouts" {
+  *loadout_id : INTEGER <<PK>>
+  --
+  player_id : INTEGER <<FK>>
+  name : VARCHAR(50)
+  is_active : BOOLEAN
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "loadout_cosmetics" {
+  *loadout_id : INTEGER <<PK>> <<FK>>
+  *cosmetic_id : INTEGER <<PK>> <<FK>>
+  --
+  slot : ENUM('character_skin', 'weapon_skin', 'emote', 'taunt', 'badge', 'title', 'particle_effect', 'other')
+}
+
+entity "cosmetic_items" {
+  *cosmetic_id : INTEGER <<PK>>
+  --
+  name : VARCHAR(100)
+  description : TEXT
+  slot : ENUM('character_skin', 'weapon_skin', 'emote', 'taunt', 'badge', 'title', 'particle_effect', 'other')
+  category : VARCHAR(50)
+  rarity : ENUM('common', 'uncommon', 'rare', 'epic', 'legendary')
+  unlock_level : INTEGER
+  data_cost : INTEGER
+  is_prestige_only : BOOLEAN
+  created_at : TIMESTAMP
+}
+
+entity "player_cosmetics" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  *cosmetic_id : INTEGER <<PK>> <<FK>>
+  --
+  unlocked_at : TIMESTAMP
+  unlocked_via : ENUM('level_up', 'purchase', 'loot_drop', 'prestige')
+}
+
+entity "servers" {
+  *server_id : INTEGER <<PK>>
+  --
+  ip_address : VARCHAR(45)
+  port : INTEGER
+  name : VARCHAR(100)
+  map_rotation : TEXT
+  max_players : INTEGER
+  current_players : INTEGER
+  is_online : BOOLEAN
+  last_heartbeat : TIMESTAMP
+  region : VARCHAR(50)
+  version : VARCHAR(20)
+  created_at : TIMESTAMP
+}
+
+entity "matches" {
+  *match_id : INTEGER <<PK>>
+  --
+  server_id : INTEGER <<FK>>
+  map_name : VARCHAR(100)
+  game_mode : VARCHAR(50)
+  start_time : TIMESTAMP
+  end_time : TIMESTAMP
+  outcome : ENUM('completed', 'failed', 'abandoned')
+  waves_survived : INTEGER
+  total_zombies_killed : INTEGER
+  total_players : INTEGER
+}
+
+entity "player_match_stats" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  *match_id : INTEGER <<PK>> <<FK>>
+  --
+  waves_survived : INTEGER
+  zombies_killed : INTEGER
+  deaths : INTEGER
+  scrap_earned : INTEGER
+  data_earned : INTEGER
+  damage_dealt : INTEGER
+  damage_taken : INTEGER
+  buildings_built : INTEGER
+  buildings_destroyed : INTEGER
+  healing_given : INTEGER
+  revives : INTEGER
+  score : INTEGER
+}
+
+entity "leaderboard_entries" {
+  *leaderboard_id : INTEGER <<PK>>
+  *player_id : INTEGER <<FK>>
+  --
+  period : ENUM('daily', 'weekly', 'monthly', 'all_time')
+  rank : INTEGER
+  score : INTEGER
+  matches_played : INTEGER
+  avg_kills_per_match : DECIMAL(5,2)
+  avg_waves_survived : DECIMAL(5,2)
+  updated_at : TIMESTAMP
+}
+
+entity "friends" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  *friend_id : INTEGER <<PK>> <<FK>>
+  --
+  status : ENUM('pending', 'accepted', 'blocked')
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "server_favorites" {
+  *player_id : INTEGER <<PK>> <<FK>>
+  *server_id : INTEGER <<PK>> <<FK>>
+  --
+  added_at : TIMESTAMP
+  note : VARCHAR(255)
+}
+
+entity "loot_tables" {
+  *loot_table_id : INTEGER <<PK>>
+  --
+  name : VARCHAR(100)
+  description : TEXT
+  drop_chance : DECIMAL(5,4)
+  is_active : BOOLEAN
+  created_at : TIMESTAMP
+}
+
+entity "loot_table_entries" {
+  *loot_entry_id : INTEGER <<PK>>
+  --
+  loot_table_id : INTEGER <<FK>>
+  cosmetic_id : INTEGER <<FK>>
+  weight : INTEGER
+  min_quantity : INTEGER
+  max_quantity : INTEGER
+}
+
+note "**Temporary Data (not stored in DB)**\n//In-match currency (Scrap)//\n//Skill upgrades (reset per map)//\n//Weapons & buildings (purchased with Scrap)//\n//Current match state (server memory only)//" as N1
+
+' ========== RELATIONSHIPS ==========
+
+' Players have one progression record
+players ||--|| player_progression : "has"
+players ||--|| player_settings : "configures"
+
+' Players can have multiple sessions
+players ||--o{ sessions : "creates"
+
+' Players can unlock many cosmetics
+players ||--o{ player_cosmetics : "unlocks"
+cosmetic_items ||--o{ player_cosmetics : "owned by"
+
+' Players can create multiple loadouts
+players ||--o{ loadouts : "creates"
+loadouts ||--o{ loadout_cosmetics : "contains"
+cosmetic_items ||--o{ loadout_cosmetics : "appears in"
+
+' Servers host multiple matches
+servers ||--o{ matches : "hosts"
+
+' Matches have multiple player statistics
+matches ||--o{ player_match_stats : "contains"
+
+' Players have multiple match statistics
+players ||--o{ player_match_stats : "participates in"
+
+' Leaderboard entries reference players
+players ||--o{ leaderboard_entries : "ranked in"
+
+' Additional relationships for social and loot systems
+' Friends is a many-to-many relationship between players
+players ||--o{ friends : "friends with"
+players ||--o{ friends : "friend of"
+
+' Players can favorite multiple servers
+players ||--o{ server_favorites : "favorites"
+servers ||--o{ server_favorites : "favorited by"
+
+' Loot tables contain multiple cosmetic items
+loot_tables ||--o{ loot_table_entries : "contains"
+cosmetic_items ||--o{ loot_table_entries : "appears in"
+
+N1 .. players
+
+' ========== NOTES ==========
+
+note top of players
+  **Player Account Information**
+  - Unique username and email
+  - Authentication via password hash
+  - Ban system for moderation
+end note
+
+note right of player_progression
+  **Progression & Currency**
+  - Level, XP, and prestige system
+  - Data currency for cosmetics
+  - Lifetime statistics aggregated
+   from match history
+end note
+
+note left of player_settings
+  **Player Settings**
+  - Key bindings (JSON serialized)
+  - Mouse sensitivity, UI scale
+  - Accessibility options
+  - Client-side preferences
+end note
+
+note left of cosmetic_items
+  **Cosmetic Catalog**
+  - Organized by slot (character skin, weapon skin, emote, etc.)
+  - Rarity system (common to legendary)
+  - Unlock via level, purchase, or loot drops
+  - Prestige-exclusive items available
+end note
+
+note right of matches
+  **Match Records**
+  - Server-authoritative results
+  - Map, mode, outcome, waves survived
+  - Aggregated team statistics
+end note
+
+note left of player_match_stats
+  **Per-Match Performance**
+  - Detailed player statistics
+  - Used for progression calculations
+  - Source for leaderboard rankings
+end note
+
+note right of friends
+  **Friends System**
+  - Bidirectional friend relationships
+  - Status: pending, accepted, blocked
+  - Timestamps for request and update
+end note
+
+note left of server_favorites
+  **Server Favorites**
+  - Players can bookmark servers
+  - Optional note for personal reference
+  - Quick access in server browser
+end note
+
+note right of loot_tables
+  **Loot Drop System**
+  - Weighted random cosmetic drops
+  - Special enemies reference loot tables
+  - Drop chance per table, weights per item
+end note
+
+note left of loadouts
+  **Cosmetic Loadouts**
+  - Players can create multiple cosmetic presets
+  - One active loadout at a time
+  - Each slot (skin, emote, etc.) can have one equipped cosmetic
+end note
+
+' ========== DIAGRAM REFERENCES ==========
+' See container diagram: ../container.puml
+' See Backend API components: ./backend-api.puml
+' This ERD represents the logical data model
+' for the SQLite database referenced in the
+' Backend API container diagram.
+
+@enduml
