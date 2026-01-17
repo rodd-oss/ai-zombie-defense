@@ -1,6 +1,6 @@
 # Game Loop
 
-### Server Browser
+## Server Browser
 
 - Player launches the game and enters the server browser interface.
 - **Dedicated Servers**: Players see a list of dedicated servers (similar to CS 1.6) displaying:
@@ -17,11 +17,11 @@
   - Shooting range to test weapons
   - Leaderboards and mission tracking
 
-### Map
+## Map
 
 Each map contains **3 Points of Interest (POIs)** that must be defended sequentially. POIs are objectives such as generators, data terminals, or barricades.
 
-#### Preparation Phase (60 seconds before each wave)
+### Preparation Phase (60 seconds before each wave)
 
 - Players start with a default amount of **Scrap** currency.
 - **Building**: Place defensive structures (walls, turrets, traps) within build zones.
@@ -30,7 +30,7 @@ Each map contains **3 Points of Interest (POIs)** that must be defended sequenti
 - **Repair**: Repair damaged structures from previous waves (if any).
 - **Strategy**: Team can allocate resources and assign roles.
 
-#### Wave Phase
+### Wave Phase
 
 - Zombies, monsters, and vampires spawn from designated spawn points and pathfind toward the **active POI**.
 - **POI Health**: Each POI has a health bar. If it reaches zero, the map fails.
@@ -39,19 +39,19 @@ Each map contains **3 Points of Interest (POIs)** that must be defended sequenti
 - **Map Completion**: After all 3 POIs have survived their waves, the map is completed.
 - **Failure**: If any POI is destroyed, the map fails immediately.
 
-#### Map Completed
+### Map Completed
 
 - “Congratulations” screen shown with performance summary.
 - **Rewards** distributed based on waves survived, kills, and team contribution.
 - 15‑second timeout before the server automatically changes to the next map in rotation. Players may disconnect from the server during this timeout to return to the server browser.
 
-#### Map Failed
+### Map Failed
 
 - “Map Failed” screen with option to retry with the same team (if still on the same server).
 - 15‑second timeout before the server automatically changes to the next map in rotation. Players may disconnect from the server during this timeout to return to the server browser.
 - Players receive a reduced consolation reward (experience only).
 
-### Flow Summary
+## Flow Summary
 
 1. **Server Browser** → Player selects a dedicated server
 2. **Connect to Server** → Player joins the server and enters the current map
