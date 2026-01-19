@@ -1,6 +1,6 @@
 @startuml
 title Database Entity-Relationship Diagram
-' Generated from PRD requirements for AI Zombie Defence
+' Generated from PRD requirements for AI Zombie Defense
 ' See: docs/prd.md and docs/game-loop.md
 
 hide circle

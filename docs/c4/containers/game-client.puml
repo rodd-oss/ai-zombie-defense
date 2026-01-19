@@ -53,12 +53,12 @@ Rel(building_system, economy_manager, "Deducts scrap for purchases", "function c
 
 ' Network interactions
 Rel(gameplay_controller, network_client, "Sends/receives game state updates", "function calls")
-Rel(network_client, dedicated_server, "Game protocol (UDP)", "network")
+Rel(network_client, dedicated_server, "Game protocol communication", "UDP")
 
 ' Backend API interactions
 Rel(progression_manager, backend_api_client, "Fetches/saves progression data", "function calls")
 Rel(economy_manager, backend_api_client, "Fetches/saves currency balances", "function calls")
-Rel(backend_api_client, backend_api, "HTTPS", "network")
+Rel(backend_api_client, backend_api, "API requests", "HTTPS")
 
 ' Local storage interactions
 Rel(progression_manager, local_storage, "Caches progression data", "function calls")

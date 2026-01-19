@@ -38,7 +38,7 @@ Rel(wave_manager, match_manager, "Signals wave completion/failure", "function ca
 Rel(wave_manager, backend_api_client, "Requests loot drops for special enemy defeats", "function calls")
 
 ' Match lifecycle
-Rel(match_manager, backend_api_client, "Reports match results, player stats, and requests loot rewards", "function calls")
+Rel(match_manager, backend_api_client, "Reports match results, player stats, loot rewards, and server health", "function calls")
 Rel(match_manager, network_server, "Broadcasts match state to clients", "function calls")
 
 ' Validation systems interact with game simulation
@@ -47,11 +47,11 @@ Rel(economy_validator, game_simulation, "Applies validated currency changes", "f
 Rel(combat_validator, game_simulation, "Applies validated combat results", "function calls")
 
 ' External connections
-Rel(network_server, game_client, "Game protocol (UDP)", "network")
-Rel(backend_api_client, backend_api, "HTTPS", "network")
+Rel(network_server, game_client, "Game protocol communication", "UDP")
+Rel(backend_api_client, backend_api, "HTTPS communication", "HTTPS")
 
 ' Server registration and health reporting
-Rel(match_manager, backend_api_client, "Registers server, reports health", "function calls")
+
 
 ' Loot system integration via Backend API loot_service
 ' Diagram references

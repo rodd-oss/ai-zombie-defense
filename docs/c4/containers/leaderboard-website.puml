@@ -1,0 +1,24 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+title Component diagram for Leaderboard Website
+
+Container_Ext(backend_api, "Backend API", "Go", "REST API for leaderboard data")
+
+Container_Boundary(leaderboard_website, "Leaderboard Website") {
+  Component(ui_framework, "UI Framework", "Vue.js + TypeScript", "Frontend framework with Vue 3, Tailwind CSS, Pinia, Vue Router, Ark UI/Vue")
+  Component(data_fetcher, "Data Fetcher", "TypeScript", "Fetches leaderboard data from API using axios/fetch")
+  Component(cache_manager, "Cache Manager", "TypeScript", "Caches leaderboard data for performance using Pinia store")
+  Component(filter_component, "Filter Component", "TypeScript", "Filters and sorts leaderboard entries with reactive Vue composables")
+}
+
+Rel(data_fetcher, backend_api, "Queries leaderboard data", "HTTPS")
+Rel(ui_framework, data_fetcher, "Requests data for display", "function calls")
+Rel(data_fetcher, cache_manager, "Stores/retrieves cached data", "function calls")
+Rel(ui_framework, filter_component, "Applies filters and sorting", "function calls")
+
+' Diagram references
+' See context diagram: docs/c4/context.puml
+' See container diagram: docs/c4/container.puml
+' (This is a component diagram for the "Leaderboard Website" container)
+
+@enduml

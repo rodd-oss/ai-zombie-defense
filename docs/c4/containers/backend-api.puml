@@ -47,12 +47,12 @@ Rel(match_history_service, sqlc_generated, "Queries match history and statistics
 Rel(server_registry_service, sqlc_generated, "Queries server registration data", "function calls")
 Rel(leaderboard_service, sqlc_generated, "Queries aggregated statistics", "function calls")
 Rel(loot_service, sqlc_generated, "Queries loot tables and cosmetic items", "function calls")
-Rel(sqlc_generated, database, "SQL", "database connection")
+Rel(sqlc_generated, database, "Database queries", "SQL")
 
 ' External connections
-Rel(game_client, api_gateway, "HTTPS", "network")
-Rel(dedicated_server, api_gateway, "HTTPS", "network")
-Rel(leaderboard_website, api_gateway, "HTTPS", "network")
+Rel(game_client, api_gateway, "API requests", "HTTPS")
+Rel(dedicated_server, api_gateway, "API requests", "HTTPS")
+Rel(leaderboard_website, api_gateway, "API requests", "HTTPS")
 
 ' Specific API endpoints
 ' Game Client uses: authentication, progression, cosmetics, server list, leaderboards

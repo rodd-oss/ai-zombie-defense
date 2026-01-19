@@ -1,10 +1,10 @@
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
 
-title System Context diagram for AI Zombie Defence
+title System Context diagram for AI Zombie Defense
 
 Person(player, "Player", "A human player who wants to defend against zombie hordes")
-System(ai_zombie_defence, "AI Zombie Defence", "Online multiplayer co-op zombie defense game")
+System(ai_zombie_defence, "AI Zombie Defense", "Online multiplayer co-op zombie defense game")
 System_Ext(zapuskalka, "zapuskalka", "Open-source game distribution platform (https://github.com/rodd-oss/zapuskalka)")
 
 Rel(player, ai_zombie_defence, "Uses", "Game client, server browser, progression")

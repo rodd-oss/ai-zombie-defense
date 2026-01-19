@@ -1,14 +1,14 @@
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-title Container diagram for AI Zombie Defence
+title Container diagram for AI Zombie Defense
 
 ' Persons and external systems
 Person(player, "Player", "A human player who wants to defend against zombie hordes")
 System_Ext(zapuskalka, "zapuskalka", "Open-source game distribution platform (https://github.com/rodd-oss/zapuskalka)")
 
 ' AI Zombie Defence system boundary with internal containers
-System_Boundary(ai_zombie_defence, "AI Zombie Defence") {
+System_Boundary(ai_zombie_defence, "AI Zombie Defense") {
   Container(game_client, "Game Client", "Godot", "Desktop application providing game interface, rendering, and input handling")
   Container(dedicated_server, "Dedicated Server", "Godot", "Linux server hosting game sessions, simulation, and networking")
   Container(backend_api, "Backend API", "Go", "REST API for account management, progression, match history, loot system, and server registration/discovery")
@@ -47,6 +47,6 @@ Rel(leaderboard_website, backend_api, "Queries for leaderboard data", "HTTPS")
 ' - Game Client components: docs/c4/containers/game-client.puml
 ' - Dedicated Server components: docs/c4/containers/dedicated-server.puml
 ' - Backend API components: docs/c4/containers/backend-api.puml
-' - (More component diagrams can be added for other containers)
+' - Leaderboard Website components: docs/c4/containers/leaderboard-website.puml
 
 @enduml

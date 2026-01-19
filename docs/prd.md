@@ -1,8 +1,8 @@
-# Ai zombie defence
+# AI Zombie Defense
 
 ## Overview
 
-AI Zombie Defence is an online multiplayer co-op game via dedicated servers where players defend points of interest against waves of zombies, monsters, and vampires. The gameplay combines wave‑based survival (similar to Killing Floor and Call of Duty Zombies) with tower‑defense mechanics inspired by Yet Another Zombie Defense. The core loop consists of:
+AI Zombie Defense is an online multiplayer co-op game via dedicated servers where players defend points of interest against waves of zombies, monsters, and vampires. The gameplay combines wave‑based survival (similar to Killing Floor and Call of Duty Zombies) with tower‑defense mechanics inspired by Yet Another Zombie Defense. The core loop consists of:
 
 1. **Main Menu**: Customize character (skins, loadouts), view cosmetic progression, and browse servers.
 2. **Server Browser**: Browse dedicated servers running different maps in rotation; players can connect to any server.
@@ -11,6 +11,16 @@ AI Zombie Defence is an online multiplayer co-op game via dedicated servers wher
 5. **Progression**: Level up, unlock cosmetics, and prestige.
 
 [Game loop](./game-loop.md)
+
+## Distribution Platform
+
+The game client is distributed via **zapuskalka**, an open-source game distribution platform. Zapuskalka handles:
+
+- **Client Distribution**: Players download and update the game client through the platform
+- **Optional Authentication**: Players can optionally authenticate through zapuskalka for cross-platform progression
+- **Update Management**: Automatic updates and patch distribution
+
+GitHub Repository: https://github.com/rodd-oss/zapuskalka
 
 ## Progression System
 
