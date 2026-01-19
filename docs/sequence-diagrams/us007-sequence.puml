@@ -1,0 +1,195 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Enemy AI Behavior Sequence Diagram (US007)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml
+' - Game Client: docs/c4/containers/game-client.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+
+' Internal components from Dedicated Server
+participant "Wave Manager" as WaveManager <<DedicatedServer>>
+participant "AI Controller" as AIController <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Network Server" as NetworkServer <<DedicatedServer>>
+
+' Enemy instances (created by AI Controller)
+participant "Enemy (Walker/Runner/Tank/Spitter/Vampire)" as Enemy
+
+' Point of Interest (POI) - represented as a component
+participant "Point of Interest (POI)" as POI <<GameSimulation>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Wave Manager triggers enemy spawns ===
+group "Wave Spawn: Trigger Enemy Spawns"
+  note right of WaveManager
+    Wave Manager determines spawn composition based on:
+    - Current wave number
+    - Player count
+    - Difficulty scaling
+    - Active POI status
+  end note
+  WaveManager -> AIController: SpawnEnemyWave(waveConfig)
+  AIController -> GameSimulation: RequestSpawnLocations()
+  GameSimulation -> AIController: ReturnSpawnPoints()
+  AIController -> Enemy: CreateEnemyInstance(type, behavior, spawnPoint)
+  Enemy -> GameSimulation: RegisterEnemy(enemyId, position)
+  GameSimulation -> Enemy: AcknowledgeRegistration()
+  Enemy -> AIController: EnemySpawned(enemyId, type)
+  AIController -> WaveManager: WaveSpawnComplete()
+end
+
+' === Section 2: Enemy pathfinding to POI ===
+group "Enemy Pathfinding to Active POI"
+  note right of AIController
+    AI Controller updates enemy positions each tick
+    Enemies pathfind to active POI using navigation mesh
+    Different enemy types have different movement speeds
+  end note
+  AIController -> Enemy: CalculatePathToPOI()
+  Enemy -> GameSimulation: RequestPath(start, POI_location)
+  GameSimulation -> Enemy: ReturnPath(pathNodes)
+  Enemy -> GameSimulation: MoveAlongPath(speed)
+  GameSimulation -> Enemy: UpdatePosition(newPosition)
+  Enemy -> AIController: PositionUpdated(enemyId, position)
+  AIController -> NetworkServer: BroadcastEnemyPosition(enemyId, position)
+  NetworkServer -> GameClient: EnemyPositionUpdate(enemyId, position)
+  GameClient -> Player: Render enemy movement (visual/audio)
+end
+
+' === Section 3: Enemy targeting logic (prioritize players vs POI) ===
+group "Enemy Targeting: Prioritize Players vs POI"
+  note right of Enemy
+    Enemy types have distinct targeting behaviors:
+    - Walker/Runner/Tank: Target POI, attack players blocking path
+    - Vampire: Prioritize low‑health players over POI
+    - Spitter: Stay at range, target nearest player
+  end note
+  Enemy -> GameSimulation: ScanForTargets(range)
+  GameSimulation -> Enemy: ReturnTargets(players, POI)
+  alt Target is Player (blocking path or priority)
+    Enemy -> Enemy: SetTarget(playerId)
+    Enemy -> AIController: TargetAcquired(enemyId, playerId)
+  else Target is POI
+    Enemy -> Enemy: SetTarget(POI)
+    Enemy -> AIController: TargetAcquired(enemyId, POI)
+  end
+  AIController -> NetworkServer: BroadcastEnemyTarget(enemyId, target)
+  NetworkServer -> GameClient: EnemyTargetUpdate(enemyId, target)
+end
+
+' === Section 4: Enemy attacks and special abilities ===
+group "Enemy Attacks & Special Abilities"
+  note right of Enemy
+    Different enemy attack patterns:
+    - Walker: Basic melee attack
+    - Runner: Fast melee attack
+    - Tank: Heavy melee with knockback
+    - Spitter: Ranged acid spit (DoT/slow)
+    - Vampire: Drain health on hit, teleport
+  end note
+  Enemy -> CombatValidator: ValidateAttack(enemyId, target, attackType)
+  CombatValidator -> GameSimulation: CheckLineOfSight(enemyId, target)
+  GameSimulation -> CombatValidator: LineOfSightResult(clear)
+  alt Attack Valid
+    CombatValidator -> GameSimulation: ApplyDamage(target, damage, effects)
+    GameSimulation -> CombatValidator: DamageApplied()
+    CombatValidator -> Enemy: AttackSuccessful()
+    Enemy -> AIController: AttackExecuted(enemyId, target)
+    AIController -> NetworkServer: BroadcastAttack(enemyId, target, effects)
+    NetworkServer -> GameClient: EnemyAttackEvent(enemyId, target, effects)
+    GameClient -> Player: Show attack effects (visual/audio)
+  else Attack Invalid (obstructed, out of range)
+    CombatValidator -> Enemy: AttackFailed(reason)
+    Enemy -> Enemy: Recalculate approach
+  end
+end
+
+' === Section 5: Enemy reactions to player actions ===
+group "Enemy Reactions: Damage Received"
+  Player -> GameClient: Attack enemy (input)
+  GameClient -> DedicatedServer: SendPlayerAttack(enemyId)
+  DedicatedServer -> CombatValidator: ValidatePlayerAttack(enemyId)
+  CombatValidator -> GameSimulation: ApplyDamageToEnemy(enemyId, damage)
+  GameSimulation -> CombatValidator: DamageApplied()
+  CombatValidator -> DedicatedServer: AttackValidated()
+  DedicatedServer -> GameClient: ConfirmHit(enemyId, damage)
+  GameClient -> Player: Show hit feedback
+  GameSimulation -> Enemy: NotifyDamageReceived(damage, source)
+  Enemy -> Enemy: UpdateHealth()
+  alt Health > 0
+    Enemy -> Enemy: ReactToDamage(source)
+    Enemy -> AIController: ChangeTarget(source) ' Prioritize attacker
+    AIController -> NetworkServer: BroadcastEnemyReaction(enemyId, newTarget)
+  else Health <= 0
+    ' Will be handled in Section 7
+  end
+end
+
+group "Enemy Reactions: Grenade Threat"
+  note right of Enemy
+    Enemies react to grenades by fleeing
+    (if within blast radius)
+  end note
+  Player -> GameClient: Throw grenade
+  GameClient -> DedicatedServer: SendGrenadeThrow(position)
+  DedicatedServer -> GameSimulation: SpawnGrenade(position)
+  GameSimulation -> Enemy: NotifyGrenadeThreat(position, radius)
+  Enemy -> Enemy: EvaluateThreat()
+  alt Within Danger Radius
+    Enemy -> Enemy: FleeFrom(position)
+    Enemy -> AIController: FleeBehavior(enemyId, fleeVector)
+    AIController -> NetworkServer: BroadcastEnemyFlee(enemyId, fleeVector)
+    NetworkServer -> GameClient: EnemyFleeUpdate(enemyId, fleeVector)
+  else Safe distance
+    Enemy -> Enemy: Ignore threat
+  end
+end
+
+' === Section 6: Enemy death and loot drops ===
+group "Enemy Death & Loot Drops"
+  note right of Enemy
+    Upon death, enemies may drop loot (scrap, health packs, etc.)
+    Special enemies trigger loot requests via Wave Manager
+  end note
+  Enemy -> GameSimulation: NotifyDeath(enemyId)
+  GameSimulation -> CombatValidator: ConfirmEnemyDeath(enemyId)
+  CombatValidator -> GameSimulation: RemoveEnemy(enemyId)
+  GameSimulation -> AIController: EnemyDied(enemyId)
+  AIController -> WaveManager: ReportEnemyDeath(enemyId, type)
+  WaveManager -> GameSimulation: SpawnLootDrop(enemyId, position)
+  GameSimulation -> NetworkServer: BroadcastLootDrop(lootId, position, type)
+  NetworkServer -> GameClient: LootDropSpawned(lootId, position, type)
+  GameClient -> Player: Show loot drop (visual/audio)
+  
+  note right of WaveManager
+    Special enemies (bosses, vampires) may trigger
+    cosmetic loot requests via Backend API (not shown)
+  end note
+end
+
+' Add notes referencing US007 acceptance criteria
+note right of Player
+  <b>US007 Acceptance Criteria:</b>
+  - Enemies pathfind to active POI, attack players blocking path
+  - Special enemies prioritize players over POI (e.g., vampire)
+  - Distinct enemy behaviors: Walker, Runner, Tank, Spitter, Vampire
+  - Enemies react to player actions (damage, grenades)
+  - Spawns balanced across waves, scale with player count/difficulty
+  - Visual/audio cues for attacks and abilities
+end note
+
+@enduml

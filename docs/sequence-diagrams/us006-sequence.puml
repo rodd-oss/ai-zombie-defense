@@ -1,0 +1,193 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Building Mechanics Sequence Diagram (US006)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Shop Component" as ShopComponent <<GameClient>>
+participant "Building System" as BuildingSystem <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Building Validator" as BuildingValidator <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Match Manager" as MatchManager <<DedicatedServer>>
+participant "AI Controller" as AIController <<DedicatedServer>>
+participant "Server Backend API Client" as ServerBackendAPIClient <<DedicatedServer>>
+
+' Internal components from Backend API (minimal, building data is temporary)
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Match History Service" as MatchHistoryService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Building Placement during Preparation Phase ===
+group "Preparation Phase: Place Building"
+  note right of BuildingValidator
+    Building placement must satisfy:
+    - Valid terrain (not obstructed)
+    - Not inside POI
+    - Sufficient scrap
+    - Only allowed during preparation phase (enforced by Gameplay Controller)
+    Building types: Walls, Turrets, Traps
+  end note
+  Player -> ShopComponent: Open building menu
+  ShopComponent -> EconomyManager: Request scrap balance & building options
+  EconomyManager -> ShopComponent: Return scrap balance & available buildings
+  Player -> ShopComponent: Select building type (e.g., Wall)
+  ShopComponent -> BuildingSystem: Start placement preview
+  BuildingSystem -> Player: Show ghost preview (client-side)
+  Player -> BuildingSystem: Choose placement location
+  BuildingSystem -> DedicatedServer: Building placement request (type, position)
+  DedicatedServer -> BuildingValidator: Validate terrain & POI restrictions
+  BuildingValidator -> EconomyValidator: Check scrap cost
+  alt Valid placement & sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, spawn building with health
+    GameSimulation -> BuildingValidator: Building created
+    BuildingValidator -> DedicatedServer: Placement approved
+    DedicatedServer -> GameClient: Confirm placement + updated scrap
+    GameClient -> BuildingSystem: Place building in world
+    BuildingSystem -> Player: Building appears
+  else Invalid placement
+    BuildingValidator -> DedicatedServer: Placement denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Cannot place here"
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Placement denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 2: Building Health & Damage from Enemies ===
+group "During Wave: Enemy Attacks Building"
+  note right of GameSimulation
+    Buildings have health and can be destroyed by enemies.
+    Server-authoritative health management.
+  end note
+  AIController -> GameSimulation: Enemy attacks building (damage amount)
+  GameSimulation -> GameSimulation: Reduce building health
+  alt Building health <= 0
+    GameSimulation -> GameSimulation: Destroy building
+    GameSimulation -> DedicatedServer: Notify building destroyed
+    DedicatedServer -> GameClient: Building destroyed event
+    GameClient -> BuildingSystem: Remove building visuals
+    BuildingSystem -> Player: Show destruction effects
+  else Building still standing
+    GameSimulation -> DedicatedServer: Building health updated
+    DedicatedServer -> GameClient: Update building health
+    GameClient -> BuildingSystem: Update building visuals (damage state)
+    BuildingSystem -> Player: Show damage effects
+  end
+end
+
+' === Section 3: Repairing Buildings using Scrap ===
+group "During Preparation Phase: Repair Building"
+  note right of EconomyValidator
+    Players can repair damaged buildings using scrap.
+    Repair restores health up to max.
+    Allowed during preparation phase only (enforced by Gameplay Controller).
+  end note
+  Player -> BuildingSystem: Interact with damaged building
+  BuildingSystem -> DedicatedServer: Repair request (building ID)
+  DedicatedServer -> BuildingValidator: Validate building can be repaired
+  BuildingValidator -> EconomyValidator: Check scrap cost for repair
+  alt Sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, increase building health
+    GameSimulation -> BuildingValidator: Repair applied
+    BuildingValidator -> DedicatedServer: Repair successful
+    DedicatedServer -> GameClient: Confirm repair + updated scrap
+    GameClient -> BuildingSystem: Update building health visuals
+    BuildingSystem -> Player: Show repair effects
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Repair denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 4: Upgrading Buildings using Scrap ===
+group "During Map: Upgrade Building"
+  note right of BuildingValidator
+    Buildings can be upgraded to advanced versions
+    (e.g., flame turrets, electric fences) using scrap.
+    Upgrades are temporary and lost at map end.
+    Allowed during preparation phase only (enforced by Gameplay Controller).
+  end note
+  Player -> BuildingSystem: Interact with building (upgrade option)
+  BuildingSystem -> DedicatedServer: Upgrade request (building ID, upgrade type)
+  DedicatedServer -> BuildingValidator: Validate upgrade allowed
+  BuildingValidator -> EconomyValidator: Check scrap cost for upgrade
+  alt Sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, apply upgrade
+    GameSimulation -> BuildingValidator: Upgrade applied
+    BuildingValidator -> DedicatedServer: Upgrade successful
+    DedicatedServer -> GameClient: Confirm upgrade + updated scrap
+    GameClient -> BuildingSystem: Update building visuals/abilities
+    BuildingSystem -> Player: Show upgrade effects
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Upgrade denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 5: Building Destruction and Removal ===
+' Covered in Section 2 (enemy destruction). Could also be manual removal,
+' but not required per acceptance criteria.
+
+' === Section 6: End of Map Cleanup (Buildings Lost) ===
+group "End of Map: Remove All Buildings"
+  note right of MatchManager
+    Buildings are lost at the end of the map
+    (do not persist between maps).
+    Temporary upgrades also lost.
+  end note
+  MatchManager -> GameSimulation: Map ended, remove all buildings
+  GameSimulation -> GameSimulation: Delete all building entities
+  GameSimulation -> DedicatedServer: Buildings cleared
+  DedicatedServer -> GameClient: Notify buildings removed
+  GameClient -> BuildingSystem: Clear all building visuals
+  BuildingSystem -> Player: World cleared of buildings
+  
+  ' Optionally report match results to Backend API (not building-specific)
+  MatchManager -> ServerBackendAPIClient: Submit match results
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /match/results
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> MatchHistoryService: Store match data
+  MatchHistoryService -> Database: Persist match history
+end
+
+' Add notes referencing US006 acceptance criteria
+note right of Player
+  <b>US006 Acceptance Criteria:</b>
+  - Place buildings during preparation phase
+  - Building types: Walls, Turrets, Traps
+  - Buildings have health, can be destroyed by enemies
+  - Repair damaged buildings using scrap
+  - Upgrade buildings using scrap (temporary)
+  - Placement restrictions: terrain, POI
+  - Buildings lost at map end
+end note
+
+@enduml

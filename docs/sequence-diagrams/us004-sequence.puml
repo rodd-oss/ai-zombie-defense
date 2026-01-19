@@ -1,0 +1,245 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Combat Mechanics Sequence Diagram (US004)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+
+' Internal components from Game Client
+participant "Combat System" as CombatSystem <<GameClient>>
+participant "Gameplay Controller" as GameplayController <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Network Client" as NetworkClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "AI Controller" as AIController <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Network Server" as NetworkServer <<DedicatedServer>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+
+' === Section 1: Player Selects Weapon (Client-Side) ===
+group "Weapon Selection (Client-Side)"
+  note right of CombatSystem
+    Multiple weapon types available:
+    - Ranged: assault rifles, shotguns, sniper rifles, pistols
+    - Melee: bat, axe, knife
+    - Throwables: grenades, molotovs, flashbangs
+    Weapons have distinct stats: damage, rate of fire, accuracy, reload time
+  end note
+  Player -> CombatSystem: Open weapon wheel/select weapon
+  CombatSystem -> CombatSystem: Validate weapon availability (ammo, equipped)
+  CombatSystem -> Player: Update HUD with selected weapon
+  CombatSystem -> Player: Play weapon switch animation/sound
+end
+
+' === Section 2: Player Fires Weapon (Client-Side Prediction + Server Validation) ===
+group "Weapon Fire (Client-Side Prediction + Server Authoritative)"
+  note right of CombatSystem
+    Client-side prediction: Immediate visual/audio feedback,
+    damage numbers, hit markers
+  end note
+  Player -> CombatSystem: Fire weapon input (aim direction, target)
+  CombatSystem -> CombatSystem: Predict hit & show effects (hit marker, blood splatter)
+  CombatSystem -> NetworkClient: Send fire event (weapon ID, target, timestamp)
+  NetworkClient -> DedicatedServer: UDP packet
+  DedicatedServer -> NetworkServer: Receive fire event
+  NetworkServer -> CombatValidator: Validate fire (rate of fire, ammo, position)
+  CombatValidator -> GameSimulation: Request ammo deduction
+  GameSimulation -> CombatValidator: Confirm ammo updated
+  CombatValidator -> CombatValidator: Calculate damage based on weapon stats
+  CombatValidator -> GameSimulation: Apply damage to enemy (if hit)
+  GameSimulation -> CombatValidator: Damage applied
+  CombatValidator -> NetworkServer: Validation result (hit/miss, damage)
+  NetworkServer -> NetworkClient: Send validation response
+  NetworkClient -> CombatSystem: Receive server correction
+  alt Server validation matches client prediction
+    CombatSystem -> Player: Confirm hit (reinforce effects)
+  else Server correction needed (e.g., missed due to lag)
+    CombatSystem -> Player: Adjust visuals (remove hit marker, show miss)
+  end
+end
+
+' === Section 3: Damage Calculation and Application ===
+group "Damage Calculation & Health/Armor System"
+  note right of CombatValidator
+    Damage calculation considers:
+    - Weapon base damage
+    - Enemy type resistance
+    - Distance/accuracy
+    - Critical hits
+    Players have health and optional armor
+    Damage reduces armor first, then health
+  end note
+  CombatValidator -> CombatValidator: Calculate damage vs enemy type
+  CombatValidator -> GameSimulation: Apply damage to enemy
+  GameSimulation -> CombatValidator: Damage applied, check kill
+  alt Enemy killed
+    CombatValidator -> EconomyValidator: Award scrap for kill
+    EconomyValidator -> GameSimulation: Update player scrap balance
+    GameSimulation -> EconomyValidator: Scrap awarded
+    GameSimulation -> AIController: Enemy killed
+    GameSimulation -> NetworkServer: Notify kill + scrap reward
+  else Enemy still alive
+    GameSimulation -> AIController: Update enemy behavior (e.g., aggro)
+    AIController -> NetworkServer: Broadcast enemy state
+  end
+end
+
+' === Section 4: Health/Armor Damage and Healing Item Usage ===
+group "Player Takes Damage & Uses Healing Items"
+  note right of AIController
+    Enemy attacks player:
+    - Walker: slow melee
+    - Runner: fast melee  
+    - Tank: heavy damage
+    - Spitter: ranged acid
+    - Vampire: lifesteal
+  end note
+  AIController -> GameSimulation: Enemy attacks player
+  GameSimulation -> CombatValidator: Calculate damage to player
+  CombatValidator -> GameSimulation: Apply damage (armor then health)
+  GameSimulation -> NetworkServer: Update player health/armor
+  NetworkServer -> NetworkClient: Broadcast player state
+  NetworkClient -> CombatSystem: Update local health display
+  CombatSystem -> Player: Show damage effects (screen blood, sound)
+
+  ' Healing item usage
+  Player -> CombatSystem: Use medkit (key press)
+  CombatSystem -> NetworkClient: Send heal request
+  NetworkClient -> DedicatedServer: UDP packet
+  DedicatedServer -> CombatValidator: Validate heal (cooldown, item available)
+  CombatValidator -> GameSimulation: Apply heal over time effect
+  GameSimulation -> NetworkServer: Start heal regeneration
+  NetworkServer -> NetworkClient: Heal confirmation
+  NetworkClient -> CombatSystem: Update health regeneration UI
+  CombatSystem -> Player: Show healing effect
+end
+
+' === Section 5: Ammunition Management and Purchasing Ammo ===
+group "Ammunition Management"
+  note right of CombatSystem
+    Ammunition is limited per weapon type
+    Ammo can be purchased from shop or found in world
+    Reloading consumes time based on weapon stats
+  end note
+  ' Reloading
+  Player -> CombatSystem: Reload weapon
+  CombatSystem -> CombatSystem: Check available ammo reserves
+  alt Has reserve ammo
+    CombatSystem -> NetworkClient: Send reload request
+    NetworkClient -> DedicatedServer: UDP packet
+    DedicatedServer -> CombatValidator: Validate reload
+    CombatValidator -> GameSimulation: Transfer ammo from reserves to weapon
+    GameSimulation -> CombatValidator: Confirm ammo updated
+    CombatValidator -> NetworkServer: Reload successful
+    NetworkServer -> NetworkClient: Update ammo counts
+    NetworkClient -> CombatSystem: Update HUD
+    CombatSystem -> Player: Play reload animation/sound
+  else No reserve ammo
+    CombatSystem -> Player: Show "Out of ammo" warning
+  end
+
+  ' Purchasing ammo from shop
+  Player -> GameplayController: Open shop
+  GameplayController -> EconomyManager: Request available ammo purchases
+  EconomyManager -> GameplayController: Return ammo types and prices
+  Player -> GameplayController: Select ammo purchase
+  GameplayController -> NetworkClient: Send purchase request
+  NetworkClient -> DedicatedServer: UDP packet
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  alt Sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, add ammo to reserves
+    GameSimulation -> EconomyValidator: Purchase confirmed
+    EconomyValidator -> NetworkServer: Purchase successful
+    NetworkServer -> NetworkClient: Confirm purchase + updated scrap
+    NetworkClient -> CombatSystem: Update ammo reserves
+    CombatSystem -> Player: Show ammo added notification
+  else Insufficient scrap
+    EconomyValidator -> NetworkServer: Purchase denied
+    NetworkServer -> NetworkClient: Error message
+    NetworkClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 6: Enemy Behaviors and Attacks (Server-Side AI) ===
+group "Enemy AI Behaviors (Server-Side)"
+  note right of AIController
+    Enemy types have distinct behaviors:
+    - Walker: slow, predictable pathing
+    - Runner: fast, dodges shots
+    - Tank: high health, breaks defenses
+    - Spitter: ranged attack, area denial
+    - Vampire: lifesteal, stealth
+    AI Controller manages spawns, pathfinding, and attacks
+  end note
+  AIController -> AIController: Calculate enemy movement (pathfinding)
+  AIController -> GameSimulation: Update enemy positions
+  GameSimulation -> AIController: Check line of sight to players
+  alt Enemy can attack
+    AIController -> GameSimulation: Trigger enemy attack
+    GameSimulation -> CombatValidator: Calculate enemy damage
+    ' Continue to player damage flow (Section 4)
+  else Enemy cannot attack
+    AIController -> AIController: Continue movement toward player/POI
+  end
+  GameSimulation -> NetworkServer: Broadcast enemy states
+  NetworkServer -> NetworkClient: Update enemy positions/animations
+  NetworkClient -> CombatSystem: Render enemy movements
+  CombatSystem -> Player: Show enemies in world
+end
+
+' === Section 7: Combat Feedback to Player ===
+group "Combat Feedback (Visual/Audio)"
+  note right of CombatSystem
+    Combat feedback includes:
+    - Hit markers (color-coded for kill/headshot)
+    - Damage numbers (floating text)
+    - Screen effects (blood splatter, flashes)
+    - Audio cues (gunshots, hits, enemy sounds)
+    - HUD updates (health, ammo, kill feed)
+  end note
+  ' Hit feedback
+  CombatSystem -> CombatSystem: Display hit marker (red for kill, white for hit)
+  CombatSystem -> CombatSystem: Show floating damage numbers
+  CombatSystem -> CombatSystem: Play hit sound (flesh/metal)
+  CombatSystem -> Player: Update kill feed (if enemy killed)
+  
+  ' Health/armor feedback
+  CombatSystem -> CombatSystem: Update health/armor bars with animations
+  CombatSystem -> CombatSystem: Play low health warning sound
+  CombatSystem -> Player: Screen blood effect when damaged
+  
+  ' Ammo feedback
+  CombatSystem -> CombatSystem: Update ammo counter with color coding (low ammo = red)
+  CombatSystem -> CombatSystem: Play reload sound
+  CombatSystem -> Player: Show "low ammo" warning when reserves < 25%
+end
+
+' Add notes referencing US004 acceptance criteria
+note right of Player
+  <b>US004 Acceptance Criteria:</b>
+  - Multiple weapon types (ranged, melee, throwables)
+  - Player health and armor system
+  - Healing items (medkits) restore health over time
+  - Weapons have distinct stats (damage, rate of fire, accuracy, reload time)
+  - Ammunition limited; can be purchased or found
+  - Enemy types: Walker, Runner, Tank, Spitter, Vampire
+  - Combat feedback: hit markers, damage numbers, visual/audio effects
+end note
+
+@enduml

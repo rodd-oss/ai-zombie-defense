@@ -1,0 +1,297 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Server Browser & Customization Sequence Diagram (US008)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Server Browser" as ServerBrowser <<GameClient>>
+participant "Character Customization" as CharacterCustomization <<GameClient>>
+participant "Shop Component" as ShopComponent <<GameClient>>
+participant "Settings Component" as SettingsComponent <<GameClient>>
+participant "Progression Manager" as ProgressionManager <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+participant "Local Storage" as LocalStorage <<GameClient>>
+participant "Party Manager" as PartyManager <<GameClient>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Authentication Service" as AuthService <<BackendAPI>>
+participant "Account Service" as AccountService <<BackendAPI>>
+participant "Progression Service" as ProgressionService <<BackendAPI>>
+participant "Server Registry Service" as ServerRegistryService <<BackendAPI>>
+participant "Loot Service" as LootService <<BackendAPI>>
+participant "Leaderboard Service" as LeaderboardService <<BackendAPI>>
+participant "SQLC Generated" as SQLC <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Player Login & Server Browser Connection ===
+group "1. Player Login & Server Browser Connection"
+  note right of Player
+    Player launches game client and logs in
+    using credentials or session token
+  end note
+  
+  Player -> GameClient: Launch game & enter credentials
+  GameClient -> BackendAPIClient: Send authentication request
+  BackendAPIClient -> BackendAPI: HTTP POST /auth/login
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> AuthService: Authenticate user
+  AuthService -> SQLC: Query user credentials
+  SQLC -> Database: SELECT user, password_hash
+  Database -> SQLC: Return user data
+  SQLC -> AuthService: Credentials verified
+  AuthService -> APIGateway: Return JWT token
+  APIGateway -> BackendAPI: Authentication successful
+  BackendAPI -> GameClient: JWT token + user profile
+  
+  GameClient -> ServerBrowser: Initialize server browser UI
+  ServerBrowser -> BackendAPIClient: Request server list
+  BackendAPIClient -> BackendAPI: HTTP GET /servers
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ServerRegistryService: Get registered servers
+  ServerRegistryService -> SQLC: Query active servers
+  SQLC -> Database: SELECT * FROM servers
+  Database -> SQLC: Return server list
+  SQLC -> ServerRegistryService: Server data
+  ServerRegistryService -> APIGateway: Return server list
+  APIGateway -> BackendAPI: Server list
+  BackendAPI -> GameClient: Server list data
+  GameClient -> ServerBrowser: Display server list
+  ServerBrowser -> Player: Show server browser UI
+end
+
+' === Section 2: Browse Servers, Filter, Select Server ===
+group "2. Browse Servers, Filter, Select Server"
+  Player -> ServerBrowser: Apply filters (map, players, ping)
+  ServerBrowser -> ServerBrowser: Filter locally (client-side)
+  ServerBrowser -> Player: Update filtered list
+  
+  Player -> ServerBrowser: Select server
+  ServerBrowser -> BackendAPIClient: Get server details & join token
+  BackendAPIClient -> BackendAPI: HTTP GET /servers/{id}/join
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ServerRegistryService: Validate server & generate join token
+  ServerRegistryService -> APIGateway: Join token + connection info
+  APIGateway -> BackendAPI: Join data
+  BackendAPI -> GameClient: Server connection details
+  
+  note right of ServerBrowser
+    Client connects directly to Dedicated Server
+    using provided IP/port and join token
+  end note
+  GameClient -> ServerBrowser: Connect to Dedicated Server (UDP)
+  ServerBrowser -> Player: Transition to loading screen
+end
+
+' === Section 3: Character Cosmetic Customization ===
+group "3. Character Cosmetic Customization"
+  Player -> CharacterCustomization: Open customization screen
+  CharacterCustomization -> ProgressionManager: Load unlocked cosmetics
+  ProgressionManager -> BackendAPIClient: Fetch unlocked cosmetics
+  BackendAPIClient -> BackendAPI: HTTP GET /cosmetics/unlocked
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player's cosmetic unlocks
+  ProgressionService -> SQLC: Query cosmetic unlocks
+  SQLC -> Database: SELECT * FROM player_cosmetics
+  Database -> SQLC: Return cosmetic IDs
+  SQLC -> ProgressionService: Unlocked cosmetics
+  ProgressionService -> APIGateway: Cosmetic data
+  APIGateway -> BackendAPI: Return cosmetics
+  BackendAPI -> GameClient: Cosmetic list
+  GameClient -> CharacterCustomization: Display unlocked cosmetics
+  
+  Player -> CharacterCustomization: Preview cosmetic (client-side 3D render)
+  CharacterCustomization -> Player: Show preview
+  
+  Player -> CharacterCustomization: Equip cosmetic
+  CharacterCustomization -> BackendAPIClient: Update equipped loadout
+  BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Update equipped cosmetic
+  ProgressionService -> SQLC: Store equipped cosmetic
+  SQLC -> Database: UPDATE player_loadout
+  Database -> SQLC: Update successful
+  SQLC -> ProgressionService: Update confirmed
+  ProgressionService -> APIGateway: Success response
+  APIGateway -> BackendAPI: Update successful
+  BackendAPI -> GameClient: Equip confirmed
+  GameClient -> CharacterCustomization: Update UI
+  CharacterCustomization -> Player: Show equipped cosmetic
+end
+
+' === Section 4: Purchase Cosmetics from Store ===
+group "4. Purchase Cosmetics from Store (using Data currency)"
+  Player -> ShopComponent: Open store
+  ShopComponent -> ProgressionManager: Load available cosmetics catalog
+  ProgressionManager -> BackendAPIClient: Fetch store catalog
+  BackendAPIClient -> BackendAPI: HTTP GET /store/catalog
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> LootService: Get cosmetic catalog
+  LootService -> SQLC: Query cosmetic items
+  SQLC -> Database: SELECT * FROM cosmetic_items
+  Database -> SQLC: Return catalog
+  SQLC -> LootService: Cosmetic catalog
+  LootService -> APIGateway: Catalog data
+  APIGateway -> BackendAPI: Return catalog
+  BackendAPI -> GameClient: Store catalog
+  GameClient -> ShopComponent: Display store items with prices
+  
+  ShopComponent -> EconomyManager: Get Data currency balance
+  EconomyManager -> BackendAPIClient: Fetch currency balance
+  BackendAPIClient -> BackendAPI: HTTP GET /currency/data
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player's Data balance
+  ProgressionService -> SQLC: Query currency
+  SQLC -> Database: SELECT data_currency FROM player_currency
+  Database -> SQLC: Return balance
+  SQLC -> ProgressionService: Data currency amount
+  ProgressionService -> APIGateway: Currency balance
+  APIGateway -> BackendAPI: Return balance
+  BackendAPI -> GameClient: Data currency balance
+  GameClient -> ShopComponent: Show balance
+  
+  Player -> ShopComponent: Select cosmetic item to purchase
+  ShopComponent -> EconomyManager: Request purchase (item ID, price)
+  EconomyManager -> BackendAPIClient: Send purchase request
+  BackendAPIClient -> BackendAPI: HTTP POST /store/purchase
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Process purchase
+  ProgressionService -> SQLC: Check balance & deduct currency
+  SQLC -> Database: UPDATE player_currency SET data_currency = data_currency - price
+  SQLC -> Database: INSERT INTO player_cosmetics (player_id, cosmetic_id)
+  Database -> SQLC: Purchase successful
+  SQLC -> ProgressionService: Purchase confirmed
+  ProgressionService -> APIGateway: Purchase success + unlocked cosmetic
+  APIGateway -> BackendAPI: Purchase response
+  BackendAPI -> GameClient: Purchase successful
+  GameClient -> ShopComponent: Update UI (remove item, show unlocked)
+  ShopComponent -> Player: Show purchase confirmation
+end
+
+' === Section 5: Form Party, Invite Friends, Join Server as Party ===
+group "5. Form Party, Invite Friends, Join Server as Party"
+  Player -> PartyManager: Open social menu
+  PartyManager -> BackendAPIClient: Load friend list
+  BackendAPIClient -> BackendAPI: HTTP GET /social/friends
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> AccountService: Get player's friends
+  AccountService -> SQLC: Query friend relationships
+  SQLC -> Database: SELECT * FROM friends
+  Database -> SQLC: Return friend list
+  SQLC -> AccountService: Friend data
+  AccountService -> APIGateway: Friend list
+  APIGateway -> BackendAPI: Return friends
+  BackendAPI -> GameClient: Friend list
+  GameClient -> PartyManager: Display friends
+  
+  Player -> PartyManager: Create party
+  PartyManager -> BackendAPIClient: Create party session
+  BackendAPIClient -> BackendAPI: HTTP POST /party/create
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> AccountService: Create party record
+  AccountService -> SQLC: Insert party
+  SQLC -> Database: INSERT INTO parties
+  Database -> SQLC: Party created
+  SQLC -> AccountService: Party ID
+  AccountService -> APIGateway: Party created
+  APIGateway -> BackendAPI: Party response
+  BackendAPI -> GameClient: Party ID & invite code
+  
+  Player -> PartyManager: Invite friend to party
+  PartyManager -> BackendAPIClient: Send invitation
+  BackendAPIClient -> BackendAPI: HTTP POST /party/invite
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> AccountService: Send invite notification
+  AccountService -> APIGateway: Invite sent (push notification)
+  APIGateway -> BackendAPI: Invite sent
+  BackendAPI -> GameClient: Invite sent confirmation
+  
+  ' Friend accepts invitation (simplified)
+  note right of PartyManager
+    Friend receives notification and accepts invite.
+    Party members are now grouped.
+  end note
+  
+  Player -> PartyManager: Select server to join as party
+  PartyManager -> ServerBrowser: Request party join
+  ServerBrowser -> BackendAPIClient: Request party join token
+  BackendAPIClient -> BackendAPI: HTTP POST /servers/{id}/join-party
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ServerRegistryService: Validate party & reserve slots
+  ServerRegistryService -> SQLC: Check server capacity
+  SQLC -> Database: SELECT capacity FROM servers
+  Database -> SQLC: Capacity info
+  SQLC -> ServerRegistryService: Capacity available
+  ServerRegistryService -> APIGateway: Party join tokens
+  APIGateway -> BackendAPI: Join tokens
+  BackendAPI -> GameClient: Party connection details
+  
+  GameClient -> PartyManager: Notify party members
+  PartyManager -> ServerBrowser: Connect all party members to server
+  ServerBrowser -> Player: Transition to loading screen (party)
+end
+
+' === Section 6: View Leaderboards & Mission Tracking ===
+group "6. View Leaderboards & Mission Tracking"
+  Player -> SettingsComponent: Open leaderboards UI
+  SettingsComponent -> BackendAPIClient: Fetch leaderboard data
+  BackendAPIClient -> BackendAPI: HTTP GET /leaderboards
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> LeaderboardService: Get leaderboard rankings
+  LeaderboardService -> SQLC: Query aggregated player stats
+  SQLC -> Database: SELECT * FROM leaderboard_view
+  Database -> SQLC: Return rankings
+  SQLC -> LeaderboardService: Leaderboard data
+  LeaderboardService -> APIGateway: Leaderboard JSON
+  APIGateway -> BackendAPI: Leaderboard data
+  BackendAPI -> GameClient: Leaderboard rankings
+  GameClient -> SettingsComponent: Display leaderboard
+  
+  Player -> SettingsComponent: Open mission tracking
+  SettingsComponent -> ProgressionManager: Load active missions
+  ProgressionManager -> BackendAPIClient: Fetch mission progress
+  BackendAPIClient -> BackendAPI: HTTP GET /missions
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player mission progress
+  ProgressionService -> SQLC: Query mission progress
+  SQLC -> Database: SELECT * FROM player_missions
+  Database -> SQLC: Mission progress data
+  SQLC -> ProgressionService: Mission data
+  ProgressionService -> APIGateway: Mission progress
+  APIGateway -> BackendAPI: Mission data
+  BackendAPI -> GameClient: Mission progress
+  GameClient -> SettingsComponent: Display mission tracking UI
+  SettingsComponent -> Player: Show mission progress & rewards
+end
+
+' Add notes referencing US008 acceptance criteria
+note right of Player
+  <b>US008 Acceptance Criteria:</b>
+  - Players connect to server browser after logging in
+  - Main menu UI for server browsing, cosmetic customization, inventory
+  - Store to purchase cosmetics using Data currency
+  - Form parties and join servers from main menu
+  - Social features (text/voice chat, ping system) in parties
+  - Main menu includes mission tracking and leaderboards
+  - Customize appearance and preview cosmetics
+end note
+
+@enduml

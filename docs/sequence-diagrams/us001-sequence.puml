@@ -1,0 +1,219 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Player Progression System Sequence Diagram (US001)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Combat System" as CombatSystem <<GameClient>>
+participant "Building System" as BuildingSystem <<GameClient>>
+participant "Shop Component" as ShopComponent <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Progression Manager" as ProgressionManager <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Building Validator" as BuildingValidator <<DedicatedServer>>
+participant "Wave Manager" as WaveManager <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Match Manager" as MatchManager <<DedicatedServer>>
+participant "Server Backend API Client" as ServerBackendAPIClient <<DedicatedServer>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Progression Service" as ProgressionService <<BackendAPI>>
+participant "Loot Service" as LootService <<BackendAPI>>
+participant "Match History Service" as MatchHistoryService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: During Match - Earn Currency ===
+group "During Match: Earn Scrap from Killing Enemies"
+  note right of DedicatedServer
+    Server-authoritative: Dedicated Server validates kills
+    and awards scrap via Economy Validator
+  end note
+  Player -> CombatSystem: Attack enemy (local)
+  CombatSystem -> DedicatedServer: Send damage event
+  DedicatedServer -> CombatValidator: Validate damage & kill
+  CombatValidator -> EconomyValidator: Award scrap for kill
+  EconomyValidator -> GameSimulation: Update player scrap balance
+  GameSimulation -> EconomyValidator: Confirm update
+  EconomyValidator -> DedicatedServer: Scrap awarded
+  DedicatedServer -> GameClient: Notify scrap update
+  GameClient -> EconomyManager: Update local scrap display
+  EconomyManager -> Player: Show updated HUD
+end
+
+group "During Match: Earn Skill Points from Wave Completion"
+  note right of WaveManager
+    Wave Manager tracks wave progression and awards
+    skill points upon wave completion
+  end note
+  WaveManager -> EconomyValidator: Wave completed
+  EconomyValidator -> GameSimulation: Award skill points
+  GameSimulation -> EconomyValidator: Updated skill point balance
+  EconomyValidator -> DedicatedServer: Skill points awarded
+  DedicatedServer -> GameClient: Notify skill point update
+  GameClient -> ProgressionManager: Update local skill points
+  ProgressionManager -> Player: Show updated HUD
+end
+
+' === Section 2: During Match - Spend Skill Points (Temporary Upgrades) ===
+group "During Match: Purchase Temporary Skill Upgrade"
+  note right of EconomyValidator
+    Skill points are temporary currency
+    Upgrades apply only for current map
+  end note
+  Player -> ShopComponent: Open skill tree UI
+  ShopComponent -> ProgressionManager: Request available upgrades
+  ProgressionManager -> ShopComponent: Return upgrade options
+  Player -> ShopComponent: Select upgrade (e.g., +10% health)
+  ShopComponent -> DedicatedServer: Purchase request (skill point cost)
+  DedicatedServer -> EconomyValidator: Validate skill point balance
+  alt Sufficient skill points
+    EconomyValidator -> GameSimulation: Deduct skill points, apply upgrade
+    GameSimulation -> EconomyValidator: Upgrade applied
+    EconomyValidator -> DedicatedServer: Purchase successful
+    DedicatedServer -> GameClient: Confirm upgrade + updated skill points
+    GameClient -> ProgressionManager: Apply upgrade locally
+    ProgressionManager -> Player: Show upgrade effect
+  else Insufficient skill points
+    EconomyValidator -> DedicatedServer: Purchase denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient skill points"
+  end
+end
+
+' === Section 3: During Match - Spend Scrap (Weapons & Buildings) ===
+group "During Match: Purchase Weapon with Scrap"
+  Player -> ShopComponent: Open weapon shop
+  ShopComponent -> EconomyManager: Request available weapons & scrap balance
+  EconomyManager -> ShopComponent: Return weapon list
+  Player -> ShopComponent: Select weapon purchase
+  ShopComponent -> DedicatedServer: Purchase request (weapon ID, scrap cost)
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  alt Sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, add weapon to player inventory
+    GameSimulation -> EconomyValidator: Weapon granted
+    EconomyValidator -> DedicatedServer: Purchase successful
+    DedicatedServer -> GameClient: Confirm weapon purchase + updated scrap
+    GameClient -> CombatSystem: Add weapon to loadout
+    CombatSystem -> Player: Equip new weapon
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Purchase denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+group "During Match: Purchase Building with Scrap"
+  Player -> ShopComponent: Open building shop
+  ShopComponent -> EconomyManager: Request building options & scrap balance
+  EconomyManager -> ShopComponent: Return building list
+  Player -> ShopComponent: Select building purchase
+  ShopComponent -> DedicatedServer: Purchase request (building type, scrap cost)
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  alt Sufficient scrap
+    EconomyValidator -> BuildingValidator: Validate placement (if applicable)
+    BuildingValidator -> GameSimulation: Deduct scrap, spawn building
+    GameSimulation -> BuildingValidator: Building spawned
+    BuildingValidator -> DedicatedServer: Purchase successful
+    DedicatedServer -> GameClient: Confirm building purchase + updated scrap
+    GameClient -> BuildingSystem: Place building in world
+    BuildingSystem -> Player: Building appears
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Purchase denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 4: End of Match - Reset Temporary Progression ===
+group "End of Match: Reset & Persist Cosmetics"
+  note right of MatchManager
+    At map end, temporary progression resets:
+    - Skill points set to zero
+    - Scrap set to zero  
+    - Temporary upgrades removed
+    Persistent cosmetics are unlocked based on achievements
+  end note
+  WaveManager -> MatchManager: Final wave completed/failed
+  MatchManager -> GameSimulation: Reset all player skill points & scrap
+  GameSimulation -> MatchManager: Reset confirmed
+  
+  MatchManager -> ServerBackendAPIClient: Submit match results + player stats
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /match/results
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> MatchHistoryService: Store match data
+  MatchHistoryService -> Database: Persist match history
+  
+  ' Process cosmetic unlocks
+  MatchHistoryService -> ProgressionService: Notify match completion
+  ProgressionService -> LootService: Request loot drops (check achievements)
+  LootService -> ProgressionService: Cosmetic rewards (if any)
+  ProgressionService -> Database: Unlock cosmetics & update prestige
+  
+  ' Notify client of reset and new cosmetics
+  ProgressionService -> BackendAPI: Response with unlocked cosmetics
+  BackendAPI -> GameClient: Match results + cosmetic unlocks
+  GameClient -> ProgressionManager: Update cosmetic inventory
+  ProgressionManager -> Player: Show end-of-match summary
+end
+
+' === Section 5: Between Matches - Cosmetic Management ===
+group "Between Matches: Equip Cosmetics"
+  Player -> ShopComponent: Open cosmetic menu
+  ShopComponent -> ProgressionManager: Load cosmetic inventory
+  ProgressionManager -> BackendAPIClient: Fetch unlocked cosmetics
+  BackendAPIClient -> BackendAPI: HTTP GET /cosmetics
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player cosmetics
+  ProgressionService -> Database: Query cosmetic unlocks
+  Database -> ProgressionService: Return cosmetic list
+  ProgressionService -> BackendAPI: Return cosmetics
+  BackendAPI -> GameClient: Cosmetic data
+  GameClient -> Player: Display cosmetic menu
+  
+  Player -> ShopComponent: Equip cosmetic
+  ShopComponent -> BackendAPIClient: Update equipped cosmetic
+  BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Set equipped cosmetic
+  ProgressionService -> Database: Store equipped cosmetic
+  ProgressionService -> BackendAPI: Update confirmed
+  BackendAPI -> GameClient: Equip successful
+  GameClient -> Player: Update character appearance
+end
+
+' Add notes referencing US001 acceptance criteria
+note right of Player
+  <b>US001 Acceptance Criteria:</b>
+  - Earn scrap/skill points from kills/waves
+  - Spend skill points on temporary upgrades (map-only)
+  - Weapons/buildings purchased with scrap
+  - Reset skill points/scrap at map end
+  - Persistent cosmetics via achievements
+  - Prestige system (cosmetic only)
+end note
+
+@enduml

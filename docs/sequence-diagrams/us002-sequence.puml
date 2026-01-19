@@ -1,0 +1,249 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Rewards Economy Sequence Diagram (US002)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Combat System" as CombatSystem <<GameClient>>
+participant "Building System" as BuildingSystem <<GameClient>>
+participant "Shop Component" as ShopComponent <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Progression Manager" as ProgressionManager <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Building Validator" as BuildingValidator <<DedicatedServer>>
+participant "Wave Manager" as WaveManager <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Match Manager" as MatchManager <<DedicatedServer>>
+participant "Server Backend API Client" as ServerBackendAPIClient <<DedicatedServer>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Progression Service" as ProgressionService <<BackendAPI>>
+participant "Loot Service" as LootService <<BackendAPI>>
+participant "Match History Service" as MatchHistoryService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Earn Scrap from Killing Enemies ===
+group "Earn Scrap from Killing Enemies"
+  note right of DedicatedServer
+    Server-authoritative: Dedicated Server validates kills
+    and awards scrap via Economy Validator.
+    Scrap is used for in-map purchases (weapons, ammo, buildings, upgrades).
+  end note
+  Player -> CombatSystem: Attack enemy (local)
+  CombatSystem -> DedicatedServer: Send damage event
+  DedicatedServer -> CombatValidator: Validate damage & kill
+  CombatValidator -> EconomyValidator: Award scrap for kill
+  EconomyValidator -> GameSimulation: Update player scrap balance
+  GameSimulation -> EconomyValidator: Confirm update
+  EconomyValidator -> DedicatedServer: Scrap awarded
+  DedicatedServer -> GameClient: Notify scrap update
+  GameClient -> EconomyManager: Update local scrap display
+  EconomyManager -> Player: Show updated HUD
+end
+
+' === Section 2: Earn Data Currency from Completing Maps ===
+group "Earn Data Currency from Map Completion"
+  note right of WaveManager
+    Data currency is earned from completing maps (wave survival)
+    and is used for cosmetic unlocks only.
+    Awarded at match end via Backend API.
+  end note
+  WaveManager -> MatchManager: Final wave completed (map success)
+  MatchManager -> ServerBackendAPIClient: Submit match results + award Data
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /match/results
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> MatchHistoryService: Store match data
+  MatchHistoryService -> Database: Persist match history
+  
+  ' Award Data currency via Progression Service
+  MatchHistoryService -> ProgressionService: Notify match completion with success
+  ProgressionService -> Database: Award Data currency to player
+  Database -> ProgressionService: Updated Data balance
+  ProgressionService -> BackendAPI: Response with updated balances
+  
+  ' Notify client of Data currency earned
+  BackendAPI -> GameClient: Match results + Data currency award
+  GameClient -> EconomyManager: Update local Data balance
+  EconomyManager -> Player: Show Data earned notification
+end
+
+' === Section 3: Special Enemies Drop Cosmetic Items ===
+group "Special Enemies Drop Cosmetic Items (Loot Drops)"
+  note right of WaveManager
+    Special enemies (bosses, elites) have chance to drop
+    cosmetic items or weapon skins (persistent).
+    Loot drops are determined by Loot Service based on loot tables.
+  end note
+  Player -> CombatSystem: Attack special enemy
+  CombatSystem -> DedicatedServer: Send damage event
+  DedicatedServer -> CombatValidator: Validate damage & kill
+  CombatValidator -> WaveManager: Special enemy defeated
+  WaveManager -> ServerBackendAPIClient: Request loot drop for player
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /loot/drop
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> LootService: Determine cosmetic drop
+  LootService -> Database: Query loot tables
+  Database -> LootService: Return weighted drop options
+  LootService -> ProgressionService: Grant cosmetic item to player
+  ProgressionService -> Database: Unlock cosmetic for player
+  Database -> ProgressionService: Cosmetic unlocked
+  ProgressionService -> BackendAPI: Response with cosmetic reward
+  
+  ' Notify client of cosmetic drop
+  BackendAPI -> GameClient: Cosmetic item unlocked
+  GameClient -> ProgressionManager: Add cosmetic to inventory
+  ProgressionManager -> Player: Show loot drop notification
+end
+
+' === Section 4: Purchase Consumables/Temporary Gear from In-Map Shop ===
+group "Purchase Consumables/Temporary Gear (using Scrap)"
+  note right of EconomyValidator
+    In-map shop sells consumables (e.g., health packs, ammo),
+    temporary gear (purchased with scrap), and skill point upgrades
+    (purchased with skill points, see US001 sequence diagram).
+    This flow shows consumables/temporary gear purchased with scrap.
+  end note
+  Player -> ShopComponent: Open in-map shop
+  ShopComponent -> EconomyManager: Request available items & scrap balance
+  EconomyManager -> ShopComponent: Return item list with scrap costs
+  Player -> ShopComponent: Select consumable/temporary gear purchase
+  ShopComponent -> DedicatedServer: Purchase request (item ID, scrap cost)
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  alt Sufficient scrap
+    EconomyValidator -> GameSimulation: Deduct scrap, add item to inventory
+    GameSimulation -> EconomyValidator: Item granted
+    EconomyValidator -> DedicatedServer: Purchase successful
+    DedicatedServer -> GameClient: Confirm purchase + updated scrap
+    GameClient -> CombatSystem: Apply item effect
+    note right of CombatSystem: Building-related items route to BuildingSystem
+    CombatSystem -> Player: Consume item / gear equipped
+  else Insufficient scrap
+    EconomyValidator -> DedicatedServer: Purchase denied
+    DedicatedServer -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient scrap"
+  end
+end
+
+' === Section 5: Purchase Permanent Cosmetics from Main Menu Store ===
+group "Purchase Permanent Cosmetics (using Data Currency)"
+  note right of BackendAPI
+    Permanent cosmetics (skins, emotes, etc.) are purchased
+    from main menu store using Data currency (cosmetic-only currency).
+    Transaction validated by Backend API Progression Service.
+  end note
+  Player -> ShopComponent: Open main menu store (between matches)
+  ShopComponent -> ProgressionManager: Request available cosmetics & Data balance
+  ProgressionManager -> BackendAPIClient: Fetch cosmetic catalog & player Data
+  BackendAPIClient -> BackendAPI: HTTP GET /cosmetics/catalog
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get catalog + player Data balance
+  ProgressionService -> Database: Query catalog & player Data
+  Database -> ProgressionService: Return catalog + Data balance
+  ProgressionService -> BackendAPI: Response with catalog & balance
+  BackendAPI -> GameClient: Cosmetic catalog & Data balance
+  GameClient -> Player: Display store UI
+  
+  Player -> ShopComponent: Select cosmetic purchase
+  ShopComponent -> BackendAPIClient: Purchase request (cosmetic ID)
+  BackendAPIClient -> BackendAPI: HTTP POST /cosmetics/purchase
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Validate purchase (Data balance, ownership)
+  alt Sufficient Data & not owned
+    ProgressionService -> Database: Deduct Data, unlock cosmetic
+    Database -> ProgressionService: Purchase confirmed
+    ProgressionService -> BackendAPI: Purchase successful
+    BackendAPI -> GameClient: Cosmetic unlocked + updated Data balance
+    GameClient -> ProgressionManager: Add cosmetic to inventory
+    ProgressionManager -> Player: Show purchase success
+  else Insufficient Data or already owned
+    ProgressionService -> BackendAPI: Purchase denied
+    BackendAPI -> GameClient: Error message
+    GameClient -> Player: Show "Insufficient Data" or "Already owned"
+  end
+end
+
+' === Section 6: Persistence of Currency Balances and Cosmetic Items ===
+group "Persistence Across Sessions"
+  note right of Database
+    Currency balances (Scrap, Data) and cosmetic items
+    are persisted in Database via Backend API.
+    Scrap is reset at map end; Data persists across sessions.
+    Cosmetic inventory is always persistent.
+  end note
+  ' On game client startup
+  Player -> GameClient: Launch game
+  GameClient -> BackendAPIClient: Fetch player progression
+  BackendAPIClient -> BackendAPI: HTTP GET /progression
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player progression
+  ProgressionService -> Database: Query currency balances & cosmetics
+  Database -> ProgressionService: Return scrap (0), Data, cosmetics
+  ProgressionService -> BackendAPI: Response with progression data
+  BackendAPI -> GameClient: Progression data
+  GameClient -> EconomyManager: Set Data balance (scrap reset to 0)
+  GameClient -> ProgressionManager: Load cosmetic inventory
+  EconomyManager -> Player: Show Data balance in UI
+  ProgressionManager -> Player: Show equipped cosmetics
+end
+
+' === Section 7: View Currency Balances in UI ===
+group "View Currency Balances in UI"
+  note right of EconomyManager
+    Players can view their scrap (in-map) and Data (global) balances
+    in the UI via Economy Manager.
+  end note
+  ' In-map HUD display (scrap)
+  EconomyManager -> Player: Continuously display scrap in HUD
+  
+  ' Main menu display (Data)
+  Player -> ShopComponent: Open main menu store
+  ShopComponent -> EconomyManager: Request Data balance
+  EconomyManager -> BackendAPIClient: Fetch Data balance (if stale)
+  BackendAPIClient -> BackendAPI: HTTP GET /progression/balances
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player balances
+  ProgressionService -> Database: Query Data balance
+  Database -> ProgressionService: Return Data balance
+  ProgressionService -> BackendAPI: Response with balances
+  BackendAPI -> GameClient: Data balance
+  GameClient -> ShopComponent: Update UI with Data balance
+  ShopComponent -> Player: Show Data balance in store UI
+end
+
+' Add notes referencing US002 acceptance criteria
+note right of Player
+  <b>US002 Acceptance Criteria:</b>
+  - Scrap currency earned from killing enemies (in-map purchases)
+  - Data currency earned from completing maps (cosmetic unlocks only)
+  - Special enemies drop cosmetic items or weapon skins (persistent)
+  - In-map shop sells consumables, temporary gear, and skill point upgrades
+  - Permanent cosmetics purchased from main menu store using Data currency
+  - Players can view currency balances in UI
+  - Currency and cosmetic items persisted between game sessions
+end note
+
+@enduml

@@ -1,0 +1,319 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Multiplayer Map Gameplay Sequence Diagram (US003)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Server Browser" as ServerBrowser <<GameClient>>
+participant "Network Client" as NetworkClient <<GameClient>>
+participant "Gameplay Controller" as GameplayController <<GameClient>>
+participant "Combat System" as CombatSystem <<GameClient>>
+participant "Building System" as BuildingSystem <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Progression Manager" as ProgressionManager <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Network Server" as NetworkServer <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Wave Manager" as WaveManager <<DedicatedServer>>
+participant "AI Controller" as AIController <<DedicatedServer>>
+participant "Building Validator" as BuildingValidator <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Match Manager" as MatchManager <<DedicatedServer>>
+participant "Server Backend API Client" as ServerBackendAPIClient <<DedicatedServer>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Server Registry Service" as ServerRegistryService <<BackendAPI>>
+participant "Match History Service" as MatchHistoryService <<BackendAPI>>
+participant "Progression Service" as ProgressionService <<BackendAPI>>
+participant "Loot Service" as LootService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Join Server via Server Browser ===
+group "Player Joins Server via Server Browser"
+  note right of ServerBrowser
+    Player opens server browser to see available servers.
+    Up to 32 players can join a map server.
+  end note
+  Player -> ServerBrowser: Open server browser UI
+  ServerBrowser -> BackendAPIClient: Request server list
+  BackendAPIClient -> BackendAPI: HTTP GET /servers
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ServerRegistryService: Get registered servers
+  ServerRegistryService -> Database: Query active servers
+  Database -> ServerRegistryService: Return server list
+  ServerRegistryService -> BackendAPI: Return server list
+  BackendAPI -> GameClient: Server list data
+  GameClient -> Player: Display server browser with available servers
+  
+  Player -> ServerBrowser: Select server to join
+  ServerBrowser -> NetworkClient: Initiate connection to selected server
+  NetworkClient -> DedicatedServer: Connect request (UDP)
+  DedicatedServer -> NetworkServer: Handle new client connection
+  NetworkServer -> GameSimulation: Add player to match
+  GameSimulation -> MatchManager: Notify player joined
+  MatchManager -> NetworkServer: Send match state (preparation phase)
+  NetworkServer -> GameClient: Match state update
+  GameClient -> GameplayController: Transition to preparation phase
+  GameplayController -> Player: Show preparation phase UI
+end
+
+' === Section 2: Preparation Phase - Set Up Defenses ===
+group "Preparation Phase: Purchase Weapons & Buildings"
+  note right of WaveManager
+    Preparation phase before each wave.
+    Players purchase weapons, ammo, buildings using scrap.
+    Skill upgrades purchased using skill points.
+    Purchases validated server-side.
+  end note
+  Player -> GameplayController: Open shop (weapons/buildings)
+  GameplayController -> EconomyManager: Request scrap balance
+  EconomyManager -> GameplayController: Return scrap amount
+  GameplayController -> Player: Show shop UI with scrap balance
+  
+  ' Weapon purchase example
+  Player -> GameplayController: Select weapon purchase
+  GameplayController -> NetworkClient: Send purchase request (weapon ID, cost)
+  NetworkClient -> DedicatedServer: Purchase request
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  EconomyValidator -> GameSimulation: Check player scrap
+  GameSimulation -> EconomyValidator: Sufficient scrap
+  EconomyValidator -> GameSimulation: Deduct scrap, add weapon to inventory
+  GameSimulation -> EconomyValidator: Weapon granted
+  EconomyValidator -> DedicatedServer: Purchase successful
+  DedicatedServer -> NetworkServer: Broadcast inventory update
+  NetworkServer -> GameClient: Weapon added notification
+  GameClient -> CombatSystem: Add weapon to loadout
+  CombatSystem -> Player: Equip new weapon
+  
+  ' Building purchase example
+  Player -> GameplayController: Select building purchase
+  GameplayController -> NetworkClient: Send building request (type, cost, position)
+  NetworkClient -> DedicatedServer: Building request
+  DedicatedServer -> EconomyValidator: Validate scrap balance
+  EconomyValidator -> GameSimulation: Check player scrap
+  GameSimulation -> EconomyValidator: Sufficient scrap
+  EconomyValidator -> BuildingValidator: Validate placement
+  BuildingValidator -> GameSimulation: Deduct scrap, spawn building
+  GameSimulation -> BuildingValidator: Building spawned
+  BuildingValidator -> DedicatedServer: Purchase successful
+  DedicatedServer -> NetworkServer: Broadcast building spawn
+  NetworkServer -> GameClient: Building placed notification
+  GameClient -> BuildingSystem: Place building in world
+  BuildingSystem -> Player: Building appears at location
+  
+  ' Skill upgrade purchase example
+  Player -> GameplayController: Open skill tree
+  GameplayController -> ProgressionManager: Request skill points
+  ProgressionManager -> GameplayController: Return skill point balance
+  GameplayController -> Player: Show skill tree UI
+  
+  Player -> GameplayController: Select skill upgrade
+  GameplayController -> NetworkClient: Send upgrade request (skill ID, cost)
+  NetworkClient -> DedicatedServer: Upgrade request
+  DedicatedServer -> EconomyValidator: Validate skill point balance
+  EconomyValidator -> GameSimulation: Check player skill points
+  GameSimulation -> EconomyValidator: Sufficient skill points
+  EconomyValidator -> GameSimulation: Deduct skill points, apply upgrade
+  GameSimulation -> EconomyValidator: Upgrade applied
+  EconomyValidator -> DedicatedServer: Upgrade successful
+  DedicatedServer -> NetworkServer: Broadcast upgrade effect
+  NetworkServer -> GameClient: Upgrade applied notification
+  GameClient -> ProgressionManager: Apply upgrade locally
+  ProgressionManager -> Player: Show upgrade effect
+end
+
+' === Section 3: Wave Progression - Synchronized Waves ===
+group "Wave Progression: AI Spawns, Enemies Attack POI"
+  note right of WaveManager
+    Each map has 3 POIs, 3 waves per POI (9 waves total).
+    Wave progression synchronized for all players.
+    AI Controller spawns enemies, Wave Manager tracks POI health.
+  end note
+  WaveManager -> MatchManager: Preparation phase ended
+  MatchManager -> NetworkServer: Broadcast wave start (wave number, POI target)
+  NetworkServer -> GameClient: Wave start notification
+  GameClient -> GameplayController: Start wave countdown
+  GameplayController -> Player: Show wave start UI
+  
+  WaveManager -> AIController: Spawn enemy wave (type, count, spawn points)
+  AIController -> GameSimulation: Create enemy entities
+  GameSimulation -> AIController: Enemies spawned
+  AIController -> WaveManager: Spawn completed
+  
+  ' Enemy movement and attack loop (simplified)
+  AIController -> GameSimulation: Update enemy positions (pathfinding to POI)
+  GameSimulation -> NetworkServer: Replicate enemy positions
+  NetworkServer -> GameClient: Enemy position updates
+  GameClient -> CombatSystem: Update enemy visuals
+  
+  ' Player attacks enemy
+  Player -> CombatSystem: Attack enemy
+  CombatSystem -> NetworkClient: Send damage event
+  NetworkClient -> DedicatedServer: Damage event
+  DedicatedServer -> CombatValidator: Validate damage
+  CombatValidator -> GameSimulation: Apply damage to enemy
+  GameSimulation -> CombatValidator: Damage applied, check kill
+  alt Enemy killed
+    CombatValidator -> EconomyValidator: Award scrap for kill
+    EconomyValidator -> GameSimulation: Update player scrap balance
+    GameSimulation -> EconomyValidator: Scrap awarded
+    EconomyValidator -> WaveManager: Notify enemy killed
+    WaveManager -> AIController: Reduce active enemy count
+  end
+  CombatValidator -> DedicatedServer: Damage result
+  DedicatedServer -> NetworkServer: Broadcast damage result
+  NetworkServer -> GameClient: Damage feedback
+  GameClient -> CombatSystem: Show hit markers
+  
+  ' Enemy attacks POI
+  AIController -> GameSimulation: Enemy reaches POI, deal damage
+  GameSimulation -> WaveManager: Update POI health
+  WaveManager -> GameSimulation: Check POI destruction
+  alt POI destroyed
+    WaveManager -> MatchManager: POI destroyed
+    MatchManager -> NetworkServer: Broadcast POI destroyed
+    NetworkServer -> GameClient: POI destroyed notification
+    GameClient -> Player: Show POI lost message
+  else POI survives
+    WaveManager -> NetworkServer: Broadcast POI health update
+    NetworkServer -> GameClient: POI health update
+    GameClient -> Player: Update POI health bar
+  end
+  
+  ' Wave completion check
+  WaveManager -> AIController: Check remaining enemies
+  AIController -> WaveManager: No enemies remaining
+  WaveManager -> EconomyValidator: Award skill points for wave completion
+  EconomyValidator -> GameSimulation: Update player skill point balances
+  GameSimulation -> EconomyValidator: Skill points awarded
+  EconomyValidator -> WaveManager: Award completed
+  WaveManager -> MatchManager: Wave completed
+  MatchManager -> NetworkServer: Broadcast wave completion
+  NetworkServer -> GameClient: Wave completed notification
+  GameClient -> Player: Show wave summary & skill points awarded
+end
+
+' === Section 4: Revive Mechanics - Downed Player Recovery ===
+group "Revive Mechanics: Teammate Revives Downed Player"
+  note right of CombatValidator
+    Downed players can be revived by teammates within time limit.
+    If not revived in time, player dies permanently (until map ends).
+  end note
+  Player -> CombatSystem: Take fatal damage
+  CombatSystem -> NetworkClient: Send downed event
+  NetworkClient -> DedicatedServer: Player downed
+  DedicatedServer -> CombatValidator: Validate downed state
+  CombatValidator -> GameSimulation: Set player to downed (start timer)
+  GameSimulation -> CombatValidator: Downed confirmed
+  CombatValidator -> DedicatedServer: Downed acknowledged
+  DedicatedServer -> NetworkServer: Broadcast player downed
+  NetworkServer -> GameClient: Player downed notification
+  GameClient -> Player: Show downed state UI (revive timer)
+  
+  ' Teammate initiates revive
+  Player -> CombatSystem: Interact with downed teammate (revive)
+  CombatSystem -> NetworkClient: Send revive request
+  NetworkClient -> DedicatedServer: Revive request
+  DedicatedServer -> CombatValidator: Validate revive (within range, time limit)
+  alt Revive valid
+    CombatValidator -> GameSimulation: Revive player (restore health)
+    GameSimulation -> CombatValidator: Player revived
+    CombatValidator -> DedicatedServer: Revive successful
+    DedicatedServer -> NetworkServer: Broadcast player revived
+    NetworkServer -> GameClient: Player revived notification
+    GameClient -> Player: Show revive success
+  else Revive invalid (timeout or out of range)
+    CombatValidator -> DedicatedServer: Revive denied
+    DedicatedServer -> NetworkServer: Broadcast revive failed
+    NetworkServer -> GameClient: Revive failed notification
+    GameClient -> Player: Show revive failed message
+  end
+end
+
+' === Section 5: End of Map - Rewards & Reset ===
+group "End of Map: Rewards Calculation & Persistence"
+  note right of MatchManager
+    Map ends when: all waves completed, all players dead, or any POI destroyed.
+    Rewards (scrap, data, XP) based on performance and waves survived.
+    Temporary items reset, persistent unlocks stored.
+  end note
+  WaveManager -> MatchManager: All waves completed OR POI destroyed OR all players dead
+  MatchManager -> GameSimulation: End match, calculate player rewards
+  GameSimulation -> MatchManager: Reward totals (scrap, data, XP)
+  
+  ' Reset temporary progression
+  MatchManager -> GameSimulation: Reset all player skill points & scrap to zero
+  GameSimulation -> MatchManager: Reset confirmed
+  
+  ' Submit match results to backend
+  MatchManager -> ServerBackendAPIClient: Submit match results + player stats + rewards
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /match/results
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> MatchHistoryService: Store match data
+  MatchHistoryService -> Database: Persist match history
+  
+  ' Process rewards and cosmetic unlocks
+  MatchHistoryService -> ProgressionService: Notify match completion with rewards
+  ProgressionService -> LootService: Request loot drops (based on achievements, waves survived)
+  LootService -> ProgressionService: Cosmetic rewards (if any)
+  ProgressionService -> Database: Unlock cosmetics, update XP, prestige
+  
+  ' Notify clients of match end and rewards
+  ProgressionService -> BackendAPI: Response with unlocked cosmetics & updated progression
+  BackendAPI -> GameClient: Match results + cosmetic unlocks + progression update
+  GameClient -> ProgressionManager: Update cosmetic inventory, XP, prestige
+  ProgressionManager -> Player: Show end-of-match summary with rewards
+end
+
+' === Section 6: Synchronization of Wave Progression ===
+group "Synchronization: Wave State Across Players"
+  note right of WaveManager
+    Wave Manager broadcasts wave state to all clients
+    ensuring synchronized progression, timers, and POI health.
+  end note
+  WaveManager -> NetworkServer: Broadcast wave state (current wave, time remaining, POI health)
+  NetworkServer -> GameClient: Wave state update
+  GameClient -> GameplayController: Update wave UI
+  GameplayController -> Player: Display synchronized wave info
+end
+
+' Add notes referencing US003 acceptance criteria
+note right of Player
+  <b>US003 Acceptance Criteria:</b>
+  - Up to 32 players join via server browser
+  - 3 POIs, 3 waves per POI (9 waves total)
+  - Preparation phase before each wave
+  - Shared objectives (defend POI, survive)
+  - Downed players can be revived by teammates
+  - Purchase weapons/ammo/buildings with scrap
+  - Purchase skill upgrades with skill points
+  - Temporary items lost between maps
+  - Wave progression synchronized
+  - Map ends when waves completed, all players dead, or POI destroyed
+  - Rewards based on performance and waves survived
+end note
+
+@enduml

@@ -1,0 +1,327 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Game Loop & Server Browser Sequence Diagram (US009)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Server Browser" as ServerBrowser <<GameClient>>
+participant "Network Client" as NetworkClient <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+participant "Gameplay Controller" as GameplayController <<GameClient>>
+participant "Progression Manager" as ProgressionManager <<GameClient>>
+participant "Economy Manager" as EconomyManager <<GameClient>>
+participant "Shop Component" as ShopComponent <<GameClient>>
+participant "Combat System" as CombatSystem <<GameClient>>
+participant "Building System" as BuildingSystem <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Network Server" as NetworkServer <<DedicatedServer>>
+participant "Match Manager" as MatchManager <<DedicatedServer>>
+participant "Wave Manager" as WaveManager <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+participant "Economy Validator" as EconomyValidator <<DedicatedServer>>
+participant "Combat Validator" as CombatValidator <<DedicatedServer>>
+participant "Building Validator" as BuildingValidator <<DedicatedServer>>
+participant "Server Backend API Client" as ServerBackendAPIClient <<DedicatedServer>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Server Registry Service" as ServerRegistryService <<BackendAPI>>
+participant "Progression Service" as ProgressionService <<BackendAPI>>
+participant "Match History Service" as MatchHistoryService <<BackendAPI>>
+participant "Loot Service" as LootService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Connect to Server Browser ===
+group "1. Connect to Server Browser (Authentication, Server List)"
+  note right of ServerBrowser
+    Player launches game client and enters server browser.
+    Server browser fetches server list and player progression.
+  end note
+  
+  Player -> ServerBrowser: Launch game client
+  ServerBrowser -> BackendAPIClient: Request server list
+  BackendAPIClient -> BackendAPI: HTTP GET /servers
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ServerRegistryService: Get registered servers
+  ServerRegistryService -> Database: Query active servers
+  Database -> ServerRegistryService: Return server list
+  ServerRegistryService -> APIGateway: Server list data
+  APIGateway -> BackendAPI: Response
+  BackendAPI -> GameClient: Server list
+  
+  ServerBrowser -> BackendAPIClient: Fetch player progression
+  BackendAPIClient -> BackendAPI: HTTP GET /progression
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player progression
+  ProgressionService -> Database: Query player data (XP, currency, cosmetics)
+  Database -> ProgressionService: Return progression
+  ProgressionService -> APIGateway: Progression data
+  APIGateway -> BackendAPI: Response
+  BackendAPI -> GameClient: Progression data
+  
+  ServerBrowser -> ProgressionManager: Update local progression cache
+  ProgressionManager -> ServerBrowser: Progression ready
+  ServerBrowser -> Player: Display server browser UI with customization options
+end
+
+' === Section 2: Join Server ===
+group "2. Join Server (Connection Establishment)"
+  note right of NetworkServer
+    Player selects a server from the list.
+    Client connects via UDP to dedicated server.
+  end note
+  
+  Player -> ServerBrowser: Select server & click "Join"
+  ServerBrowser -> NetworkClient: Connect to server (IP:port)
+  NetworkClient -> NetworkServer: UDP handshake & connection request
+  NetworkServer -> MatchManager: Validate incoming connection
+  MatchManager -> NetworkServer: Accept connection
+  NetworkServer -> NetworkClient: Connection accepted
+  NetworkClient -> ServerBrowser: Connection established
+  ServerBrowser -> GameplayController: Transition to map loading
+  GameplayController -> Player: Show loading screen
+  
+  ' Server may optionally register player join with backend (not shown)
+end
+
+' === Section 3: Preparation Phase ===
+group "3. Preparation Phase (Building, Purchasing)"
+  note right of MatchManager
+    Match Manager starts preparation phase (e.g., 60 seconds).
+    Players can purchase weapons/buildings with scrap.
+  end note
+  
+  MatchManager -> GameplayController: Start preparation phase
+  GameplayController -> Player: Show preparation UI (shop, building)
+  
+  Player -> ShopComponent: Open shop
+  ShopComponent -> EconomyManager: Request scrap balance
+  EconomyManager -> ShopComponent: Return balance
+  ShopComponent -> Player: Display shop items
+  
+  Player -> ShopComponent: Purchase weapon
+  ShopComponent -> NetworkClient: Send purchase request
+  NetworkClient -> NetworkServer: Purchase weapon (weapon ID, cost)
+  NetworkServer -> EconomyValidator: Validate scrap balance
+  EconomyValidator -> GameSimulation: Deduct scrap, add weapon
+  GameSimulation -> EconomyValidator: Weapon granted
+  EconomyValidator -> NetworkServer: Purchase successful
+  NetworkServer -> NetworkClient: Confirm purchase + updated scrap
+  NetworkClient -> EconomyManager: Update local scrap
+  EconomyManager -> Player: Show updated HUD
+  
+  Player -> BuildingSystem: Place building
+  BuildingSystem -> NetworkClient: Send building placement
+  NetworkClient -> NetworkServer: Building placement request
+  NetworkServer -> BuildingValidator: Validate placement & scrap cost
+  BuildingValidator -> GameSimulation: Deduct scrap, spawn building
+  GameSimulation -> BuildingValidator: Building spawned
+  BuildingValidator -> NetworkServer: Placement successful
+  NetworkServer -> NetworkClient: Confirm placement + updated scrap
+  NetworkClient -> BuildingSystem: Place building in world
+  BuildingSystem -> Player: Building appears
+  
+  MatchManager -> GameplayController: Preparation phase ends
+  GameplayController -> Player: Hide shop UI, start wave
+end
+
+' === Section 4: Wave Progression ===
+group "4. Wave Progression (Defend POIs, Combat)"
+  note right of WaveManager
+    Map: 3 POIs × 3 waves = 9 waves total.
+    Wave Manager spawns enemies, tracks POI health.
+  end note
+  
+  WaveManager -> GameSimulation: Start wave 1
+  GameSimulation -> WaveManager: Wave started
+  WaveManager -> GameplayController: Notify wave start
+  GameplayController -> Player: Show wave notification
+  
+  loop For each POI in wave
+    WaveManager -> GameSimulation: Spawn enemies at POI
+    GameSimulation -> CombatSystem: Enemy spawns (replicated)
+    CombatSystem -> Player: Enemies appear
+    
+    Player -> CombatSystem: Attack enemies
+    CombatSystem -> NetworkClient: Send damage event
+    NetworkClient -> NetworkServer: Damage enemy
+    NetworkServer -> CombatValidator: Validate damage & kill
+    CombatValidator -> EconomyValidator: Award scrap for kill
+    EconomyValidator -> GameSimulation: Update player scrap
+    GameSimulation -> EconomyValidator: Scrap updated
+    EconomyValidator -> NetworkServer: Kill confirmed
+    NetworkServer -> NetworkClient: Scrap award notification
+    NetworkClient -> EconomyManager: Update local scrap
+    EconomyManager -> Player: Show updated HUD
+  end
+  
+  WaveManager -> GameSimulation: Check POI health
+  alt POI destroyed
+    GameSimulation -> WaveManager: POI destroyed
+    WaveManager -> GameplayController: Notify POI lost
+    GameplayController -> Player: Show POI lost warning
+  else POI survives
+    GameSimulation -> WaveManager: POI survives
+    WaveManager -> EconomyValidator: Award skill points for wave completion
+    EconomyValidator -> GameSimulation: Add skill points
+    GameSimulation -> EconomyValidator: Skill points updated
+    EconomyValidator -> NetworkServer: Skill points awarded
+    NetworkServer -> NetworkClient: Skill point update
+    NetworkClient -> ProgressionManager: Update local skill points
+    ProgressionManager -> Player: Show skill point gain
+  end
+  
+  ' Repeat for remaining waves (simplified)
+  WaveManager -> MatchManager: All waves completed/failed
+end
+
+' === Section 5: End of Map (Rewards & Decision) ===
+group "5. End of Map: Rewards Calculation & Player Decision"
+  note right of MatchManager
+    After completing or failing map, players have 15 seconds to decide:
+    - Disconnect → return to server browser with rewards
+    - Stay → continue to next map in rotation
+  end note
+  
+  MatchManager -> GameplayController: Map ended (success/failure)
+  GameplayController -> Player: Show end-of-map screen (rewards, 15s timer)
+  
+  ' Calculate rewards (scrap, data, XP) based on performance
+  MatchManager -> ServerBackendAPIClient: Submit match results + player stats
+  ServerBackendAPIClient -> BackendAPI: HTTP POST /match/results
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> MatchHistoryService: Store match data
+  MatchHistoryService -> Database: Persist match history
+  
+  MatchHistoryService -> ProgressionService: Notify match completion
+  ProgressionService -> LootService: Request loot drops (if achievements met)
+  LootService -> ProgressionService: Cosmetic rewards (if any)
+  ProgressionService -> Database: Update XP, currency, unlock cosmetics
+  
+  ProgressionService -> BackendAPI: Response with updated progression
+  BackendAPI -> GameClient: Match results + rewards (scrap, data, XP, cosmetics)
+  GameClient -> ProgressionManager: Update local progression
+  ProgressionManager -> Player: Show rewards summary
+  
+  alt Player chooses "Disconnect"
+    Player -> GameplayController: Click "Return to Server Browser"
+    GameplayController -> NetworkClient: Disconnect from server
+    NetworkClient -> NetworkServer: Disconnect request
+    NetworkServer -> MatchManager: Remove player
+    MatchManager -> NetworkServer: Confirm removal
+    NetworkServer -> NetworkClient: Disconnect acknowledged
+    NetworkClient -> GameplayController: Disconnected
+    GameplayController -> ServerBrowser: Transition back to server browser
+    ServerBrowser -> Player: Display server browser with updated progression
+  else Player chooses "Stay"
+    Player -> GameplayController: Click "Stay on Server"
+    GameplayController -> MatchManager: Player stays for next map
+    MatchManager -> GameplayController: Start next map preparation
+    GameplayController -> Player: Loading next map
+    ' Loop back to Section 3
+  end
+end
+
+' === Section 6: Return to Server Browser ===
+group "6. Return to Server Browser (Persistence)"
+  note right of ServerBrowser
+    Player returns to server browser with updated progression.
+    Can immediately join another server or customize cosmetics.
+  end note
+  
+  ServerBrowser -> BackendAPIClient: Refresh progression
+  BackendAPIClient -> BackendAPI: HTTP GET /progression
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get latest progression
+  ProgressionService -> Database: Query updated player data
+  Database -> ProgressionService: Return progression
+  ProgressionService -> APIGateway: Progression data
+  APIGateway -> BackendAPI: Response
+  BackendAPI -> GameClient: Updated progression
+  
+  ServerBrowser -> ProgressionManager: Update local cache
+  ProgressionManager -> ServerBrowser: Cache updated
+  ServerBrowser -> Player: Display updated currency/XP in UI
+  
+  ' Cosmetic customization (optional)
+  Player -> ServerBrowser: Open customization menu
+  ServerBrowser -> BackendAPIClient: Fetch cosmetics
+  BackendAPIClient -> BackendAPI: HTTP GET /cosmetics
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get unlocked cosmetics
+  ProgressionService -> Database: Query cosmetics
+  Database -> ProgressionService: Return cosmetic list
+  ProgressionService -> BackendAPI: Cosmetics data
+  BackendAPI -> GameClient: Cosmetics list
+  GameClient -> ServerBrowser: Display customization options
+  Player -> ServerBrowser: Equip cosmetic
+  ServerBrowser -> BackendAPIClient: Update equipped cosmetic
+  BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Set equipped cosmetic
+  ProgressionService -> Database: Store equipped cosmetic
+  ProgressionService -> BackendAPI: Update confirmed
+  BackendAPI -> GameClient: Equip successful
+  GameClient -> Player: Update character appearance
+end
+
+' === Section 7: Persistence Across Sessions ===
+group "7. Persistence Across Sessions"
+  note right of ProgressionService
+    Player quits game; progression is stored in backend database.
+    Later relaunch loads progression from backend.
+  end note
+  
+  Player -> ServerBrowser: Quit game
+  ServerBrowser -> BackendAPIClient: (Optional) Flush any pending updates
+  BackendAPIClient -> BackendAPI: (If needed)
+  
+  ' Later session
+  Player -> ServerBrowser: Launch game client again
+  ServerBrowser -> BackendAPIClient: Fetch progression (as in Section 1)
+  BackendAPIClient -> BackendAPI: HTTP GET /progression
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> ProgressionService: Get player progression
+  ProgressionService -> Database: Query player data
+  Database -> ProgressionService: Return progression (persisted)
+  ProgressionService -> APIGateway: Progression data
+  APIGateway -> BackendAPI: Response
+  BackendAPI -> GameClient: Progression data
+  ServerBrowser -> Player: Display restored progression
+end
+
+' Add notes referencing US009 acceptance criteria
+note right of Player
+  <b>US009 Acceptance Criteria:</b>
+  - Players start by connecting to the server browser
+  - In the server browser, players can customize cosmetics, form parties, and join servers
+  - Players can join servers directly via the server browser
+  - Once a server is joined, players are transported to the map with a preparation phase
+  - Map consists of defending points of interest across waves (3 POIs × 3 waves = 9 waves total)
+  - After completing or failing a map, players have 15 seconds to decide: they may disconnect to return to the server browser with rewards (scrap, data, XP), or stay on the server to continue to the next map in rotation.
+  - Rewards are automatically granted and visible in the UI
+  - Players can immediately join another server or continue customization in the server browser
+  - Progression (level, unlocks, currency) persists across sessions
+end note
+
+@enduml

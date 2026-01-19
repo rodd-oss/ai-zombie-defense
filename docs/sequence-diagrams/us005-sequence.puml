@@ -1,0 +1,211 @@
+@startuml
+!define RECTANGLE participant
+!define ACTOR actor
+!define DATABASE database
+
+title Social Features Sequence Diagram (US005)
+
+' Based on C4 architecture diagrams in docs/c4/
+' References:
+' - Game Client: docs/c4/containers/game-client.puml
+' - Dedicated Server: docs/c4/containers/dedicated-server.puml  
+' - Backend API: docs/c4/containers/backend-api.puml
+
+' Actors and top-level containers
+actor "Player" as Player
+actor "Other Player" as OtherPlayer
+participant "Game Client" as GameClient
+participant "Dedicated Server" as DedicatedServer
+participant "Backend API" as BackendAPI
+database "Database" as Database
+
+' Internal components from Game Client
+participant "Social UI Component" as SocialUI <<GameClient>>
+participant "Network Client" as NetworkClient <<GameClient>>
+participant "Backend API Client" as BackendAPIClient <<GameClient>>
+
+' Internal components from Dedicated Server
+participant "Network Server" as NetworkServer <<DedicatedServer>>
+participant "Party Manager" as PartyManager <<DedicatedServer>>
+participant "Game Simulation" as GameSimulation <<DedicatedServer>>
+
+' Internal components from Backend API
+participant "API Gateway" as APIGateway <<BackendAPI>>
+participant "Social Service" as SocialService <<BackendAPI>>
+participant "Account Service" as AccountService <<BackendAPI>>
+
+' Define colors for different phases
+skinparam ParticipantBackgroundColor #F5F5F5
+skinparam ActorBackgroundColor #E1F5FE
+skinparam DatabaseBackgroundColor #FFF3E0
+
+' === Section 1: Text Chat ===
+group "Text Chat: Send Message to Party/Server Channel"
+  note right of DedicatedServer
+    Text chat messages are relayed through Dedicated Server
+    for broadcast to other players in same party or server channel.
+    Messages are not persisted (ephemeral).
+  end note
+  Player -> SocialUI: Type message in chat box
+  SocialUI -> NetworkClient: Send chat message (channel, content)
+  NetworkClient -> DedicatedServer: UDP packet (chat event)
+  DedicatedServer -> NetworkServer: Process chat message
+  NetworkServer -> PartyManager: Determine recipients (party members)
+  PartyManager -> NetworkServer: List of recipient player IDs
+  NetworkServer -> DedicatedServer: Broadcast message to recipients
+  DedicatedServer -> GameClient: Deliver message to each recipient
+  GameClient -> SocialUI: Display message in chat log
+  SocialUI -> OtherPlayer: Show message in UI
+end
+
+' === Section 2: Voice Chat ===
+group "Voice Chat: Transmit Audio to Party Members"
+  note right of DedicatedServer
+    Voice chat uses UDP audio streaming relayed through Dedicated Server.
+    Audio packets are forwarded to party members in real-time.
+    Voice chat can be disabled in settings.
+  end note
+  Player -> SocialUI: Enable microphone (push-to-talk)
+  SocialUI -> NetworkClient: Start capturing audio stream
+  NetworkClient -> DedicatedServer: Stream audio packets (UDP)
+  DedicatedServer -> NetworkServer: Route audio to party members
+  NetworkServer -> PartyManager: Get party members
+  PartyManager -> NetworkServer: Recipient list
+  NetworkServer -> DedicatedServer: Forward audio packets
+  DedicatedServer -> GameClient: Deliver audio to each recipient
+  GameClient -> SocialUI: Play audio stream
+  SocialUI -> OtherPlayer: Hear voice audio
+end
+
+' === Section 3: Ping System ===
+group "Ping System: Place Visual Marker"
+  note right of DedicatedServer
+    Ping system allows non-verbal communication:
+    - Mark locations, enemies, items
+    - Visual marker appears on all players' screens/minimaps
+    - Server-authoritative validation
+  end note
+  Player -> SocialUI: Press ping key (e.g., middle mouse)
+  SocialUI -> NetworkClient: Send ping data (type, world position)
+  NetworkClient -> DedicatedServer: UDP packet (ping event)
+  DedicatedServer -> NetworkServer: Process ping
+  NetworkServer -> GameSimulation: Validate ping position (within bounds)
+  GameSimulation -> NetworkServer: Validation result
+  alt Valid ping
+    NetworkServer -> DedicatedServer: Broadcast ping to all players in range
+    DedicatedServer -> GameClient: Deliver ping data
+    GameClient -> SocialUI: Display ping marker on HUD/minimap
+    SocialUI -> OtherPlayer: Show ping marker
+  else Invalid ping (out of bounds)
+    NetworkServer -> DedicatedServer: Reject ping
+    DedicatedServer -> GameClient: Error notification
+    GameClient -> Player: Show "Cannot ping here"
+  end
+end
+
+' === Section 4: Friend List Management ===
+group "Friend List: Add Friend & Send Request"
+  note right of BackendAPI
+    Friend list managed by Backend API Social Service.
+    Friend requests stored in database; notifications via polling.
+  end note
+  Player -> SocialUI: Open friend list, enter friend username
+  SocialUI -> BackendAPIClient: Send friend request (target username)
+  BackendAPIClient -> BackendAPI: HTTP POST /friends/request
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> SocialService: Create friend request
+  SocialService -> AccountService: Validate target user exists
+  AccountService -> SocialService: User valid
+  SocialService -> Database: Store friend request (pending)
+  Database -> SocialService: Stored successfully
+  SocialService -> BackendAPI: Return request ID
+  BackendAPI -> GameClient: Confirmation "Friend request sent"
+  GameClient -> Player: Notification "Request sent"
+  
+  ' Notify target player (polling or push)
+  OtherPlayer -> BackendAPIClient: Periodically poll for friend requests
+  BackendAPIClient -> BackendAPI: HTTP GET /friends/requests
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> SocialService: Get pending requests
+  SocialService -> Database: Query pending requests
+  Database -> SocialService: Return requests
+  SocialService -> BackendAPI: Return list including new request
+  BackendAPI -> GameClient: Deliver friend request
+  GameClient -> SocialUI: Show friend request notification
+  SocialUI -> OtherPlayer: Display "Friend request from Player"
+end
+
+group "Friend List: Accept Friend Request"
+  OtherPlayer -> SocialUI: Accept friend request
+  SocialUI -> BackendAPIClient: Accept request (request ID)
+  BackendAPIClient -> BackendAPI: HTTP POST /friends/accept
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> SocialService: Update friend status
+  SocialService -> Database: Update request to accepted, create friend relationship
+  Database -> SocialService: Updated
+  SocialService -> BackendAPI: Success
+  BackendAPI -> GameClient: Confirmation "Now friends with Player"
+  GameClient -> OtherPlayer: Notification "You are now friends"
+  
+  ' Notify original requester (Player) via polling
+  Player -> BackendAPIClient: Poll for friend updates
+  BackendAPIClient -> BackendAPI: HTTP GET /friends/list
+  BackendAPI -> APIGateway: Route request
+  APIGateway -> SocialService: Get friend list
+  SocialService -> Database: Query friend relationships
+  Database -> SocialService: Return updated list
+  SocialService -> BackendAPI: Return friend list with new friend
+  BackendAPI -> GameClient: Updated friend list
+  GameClient -> SocialUI: Refresh friend list
+  SocialUI -> Player: Show friend online status
+end
+
+' === Section 5: Invite Friend to Party ===
+group "Invite Friend to Party (via Dedicated Server)"
+  note right of DedicatedServer
+    Party invites can be sent to friends who are online.
+    Invitation flows through Dedicated Server if both players are on same server,
+    otherwise through Backend API for cross-server invites.
+    This diagram shows same-server invite.
+  end note
+  Player -> SocialUI: Select friend from list, click "Invite to Party"
+  SocialUI -> NetworkClient: Send party invite (friend player ID)
+  NetworkClient -> DedicatedServer: UDP packet (party invite)
+  DedicatedServer -> PartyManager: Validate friend is online and in same server
+  PartyManager -> DedicatedServer: Friend validated
+  DedicatedServer -> GameClient: Deliver invite to friend's client
+  GameClient -> SocialUI: Show party invite notification
+  SocialUI -> OtherPlayer: Display "Player invited you to party"
+  
+  alt Friend accepts invite
+    OtherPlayer -> SocialUI: Click "Accept"
+    SocialUI -> NetworkClient: Send accept response
+    NetworkClient -> DedicatedServer: UDP packet (accept)
+    DedicatedServer -> PartyManager: Add friend to party
+    PartyManager -> DedicatedServer: Party updated
+    DedicatedServer -> GameClient: Notify all party members
+    GameClient -> SocialUI: Update party UI
+    SocialUI -> Player: Show "OtherPlayer joined party"
+    SocialUI -> OtherPlayer: Show "You joined party"
+  else Friend declines
+    OtherPlayer -> SocialUI: Click "Decline"
+    SocialUI -> NetworkClient: Send decline response
+    NetworkClient -> DedicatedServer: UDP packet (decline)
+    DedicatedServer -> PartyManager: Notify inviter
+    DedicatedServer -> GameClient: Notify inviter
+    GameClient -> SocialUI: Show "Invite declined"
+    SocialUI -> Player: Notification "OtherPlayer declined"
+  end
+end
+
+' Add notes referencing US005 acceptance criteria
+note right of Player
+  <b>US005 Acceptance Criteria:</b>
+  - Text chat available in party and server channels
+  - Voice chat available for parties
+  - Ping system allows non-verbal communication
+  - Friend list with add, online status, invite
+  - Social features optional (disable in settings)
+end note
+
+@enduml
