@@ -53,15 +53,15 @@ group "Weapon Fire (Client-Side Prediction + Server Authoritative)"
     Client-side prediction: Immediate visual/audio feedback,
     damage numbers, hit markers
   end note
-  Player -> CombatSystem: Fire weapon input (aim direction, target)
+  Player -> CombatSystem: Fire weapon input (aim direction)
   CombatSystem -> CombatSystem: Predict hit & show effects (hit marker, blood splatter)
-  CombatSystem -> NetworkClient: Send fire event (weapon ID, target, timestamp)
+  CombatSystem -> NetworkClient: Send fire input (WeaponID, ViewDir, Timestamp)
   NetworkClient -> DedicatedServer: UDP packet
-  DedicatedServer -> NetworkServer: Receive fire event
-  NetworkServer -> CombatValidator: Validate fire (rate of fire, ammo, position)
+  DedicatedServer -> NetworkServer: Receive fire input
+  NetworkServer -> CombatValidator: Process fire & perform hit detection
   CombatValidator -> GameSimulation: Request ammo deduction
   GameSimulation -> CombatValidator: Confirm ammo updated
-  CombatValidator -> CombatValidator: Calculate damage based on weapon stats
+  CombatValidator -> CombatValidator: Calculate damage based on weapon stats & hit bone
   CombatValidator -> GameSimulation: Apply damage to enemy (if hit)
   GameSimulation -> CombatValidator: Damage applied
   CombatValidator -> NetworkServer: Validation result (hit/miss, damage)
@@ -159,9 +159,9 @@ group "Ammunition Management"
   GameplayController -> EconomyManager: Request available ammo purchases
   EconomyManager -> GameplayController: Return ammo types and prices
   Player -> GameplayController: Select ammo purchase
-  GameplayController -> NetworkClient: Send purchase request
+  GameplayController -> NetworkClient: Send purchase request (AmmoType ID)
   NetworkClient -> DedicatedServer: UDP packet
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   alt Sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, add ammo to reserves
     GameSimulation -> EconomyValidator: Purchase confirmed

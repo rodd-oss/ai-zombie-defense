@@ -95,9 +95,9 @@ group "Preparation Phase: Purchase Weapons & Buildings"
   
   ' Weapon purchase example
   Player -> GameplayController: Select weapon purchase
-  GameplayController -> NetworkClient: Send purchase request (weapon ID, cost)
+  GameplayController -> NetworkClient: Send purchase request (Weapon ID)
   NetworkClient -> DedicatedServer: Purchase request
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   EconomyValidator -> GameSimulation: Check player scrap
   GameSimulation -> EconomyValidator: Sufficient scrap
   EconomyValidator -> GameSimulation: Deduct scrap, add weapon to inventory
@@ -110,9 +110,9 @@ group "Preparation Phase: Purchase Weapons & Buildings"
   
   ' Building purchase example
   Player -> GameplayController: Select building purchase
-  GameplayController -> NetworkClient: Send building request (type, cost, position)
+  GameplayController -> NetworkClient: Send building request (Building ID, Position, Rotation)
   NetworkClient -> DedicatedServer: Building request
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   EconomyValidator -> GameSimulation: Check player scrap
   GameSimulation -> EconomyValidator: Sufficient scrap
   EconomyValidator -> BuildingValidator: Validate placement
@@ -131,9 +131,9 @@ group "Preparation Phase: Purchase Weapons & Buildings"
   GameplayController -> Player: Show skill tree UI
   
   Player -> GameplayController: Select skill upgrade
-  GameplayController -> NetworkClient: Send upgrade request (skill ID, cost)
+  GameplayController -> NetworkClient: Send upgrade request (Skill ID)
   NetworkClient -> DedicatedServer: Upgrade request
-  DedicatedServer -> EconomyValidator: Validate skill point balance
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   EconomyValidator -> GameSimulation: Check player skill points
   GameSimulation -> EconomyValidator: Sufficient skill points
   EconomyValidator -> GameSimulation: Deduct skill points, apply upgrade
@@ -171,9 +171,9 @@ group "Wave Progression: AI Spawns, Enemies Attack POI"
   
   ' Player attacks enemy
   Player -> CombatSystem: Attack enemy
-  CombatSystem -> NetworkClient: Send damage event
-  NetworkClient -> DedicatedServer: Damage event
-  DedicatedServer -> CombatValidator: Validate damage
+  CombatSystem -> NetworkClient: Report hit (TargetID, WeaponID)
+  NetworkClient -> DedicatedServer: Hit report
+  DedicatedServer -> CombatValidator: Verify hit & calculate damage
   CombatValidator -> GameSimulation: Apply damage to enemy
   GameSimulation -> CombatValidator: Damage applied, check kill
   alt Enemy killed
@@ -222,13 +222,12 @@ group "Revive Mechanics: Teammate Revives Downed Player"
     Downed players can be revived by teammates within time limit.
     If not revived in time, player dies permanently (until map ends).
   end note
-  Player -> CombatSystem: Take fatal damage
-  CombatSystem -> NetworkClient: Send downed event
-  NetworkClient -> DedicatedServer: Player downed
-  DedicatedServer -> CombatValidator: Validate downed state
+  DedicatedServer -> CombatValidator: Process enemy damage on Player
+  CombatValidator -> GameSimulation: Apply damage & check health
+  GameSimulation -> CombatValidator: Player health <= 0
   CombatValidator -> GameSimulation: Set player to downed (start timer)
-  GameSimulation -> CombatValidator: Downed confirmed
-  CombatValidator -> DedicatedServer: Downed acknowledged
+  GameSimulation -> CombatValidator: Downed state active
+  CombatValidator -> DedicatedServer: Player downed event
   DedicatedServer -> NetworkServer: Broadcast player downed
   NetworkServer -> GameClient: Player downed notification
   GameClient -> Player: Show downed state UI (revive timer)

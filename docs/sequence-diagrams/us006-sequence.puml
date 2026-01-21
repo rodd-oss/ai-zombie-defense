@@ -58,9 +58,9 @@ group "Preparation Phase: Place Building"
   ShopComponent -> BuildingSystem: Start placement preview
   BuildingSystem -> Player: Show ghost preview (client-side)
   Player -> BuildingSystem: Choose placement location
-  BuildingSystem -> DedicatedServer: Building placement request (type, position)
+  BuildingSystem -> DedicatedServer: Building placement request (TypeID, Position, Rotation)
   DedicatedServer -> BuildingValidator: Validate terrain & POI restrictions
-  BuildingValidator -> EconomyValidator: Check scrap cost
+  BuildingValidator -> EconomyValidator: Lookup cost & check balance
   alt Valid placement & sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, spawn building with health
     GameSimulation -> BuildingValidator: Building created
@@ -111,7 +111,7 @@ group "During Preparation Phase: Repair Building"
   Player -> BuildingSystem: Interact with damaged building
   BuildingSystem -> DedicatedServer: Repair request (building ID)
   DedicatedServer -> BuildingValidator: Validate building can be repaired
-  BuildingValidator -> EconomyValidator: Check scrap cost for repair
+  BuildingValidator -> EconomyValidator: Lookup repair cost & check balance
   alt Sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, increase building health
     GameSimulation -> BuildingValidator: Repair applied
@@ -137,7 +137,7 @@ group "During Map: Upgrade Building"
   Player -> BuildingSystem: Interact with building (upgrade option)
   BuildingSystem -> DedicatedServer: Upgrade request (building ID, upgrade type)
   DedicatedServer -> BuildingValidator: Validate upgrade allowed
-  BuildingValidator -> EconomyValidator: Check scrap cost for upgrade
+  BuildingValidator -> EconomyValidator: Lookup upgrade cost & check balance
   alt Sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, apply upgrade
     GameSimulation -> BuildingValidator: Upgrade applied

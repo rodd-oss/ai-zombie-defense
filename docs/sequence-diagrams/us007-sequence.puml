@@ -121,11 +121,11 @@ end
 ' === Section 5: Enemy reactions to player actions ===
 group "Enemy Reactions: Damage Received"
   Player -> GameClient: Attack enemy (input)
-  GameClient -> DedicatedServer: SendPlayerAttack(enemyId)
-  DedicatedServer -> CombatValidator: ValidatePlayerAttack(enemyId)
-  CombatValidator -> GameSimulation: ApplyDamageToEnemy(enemyId, damage)
+  GameClient -> DedicatedServer: ReportHit(TargetID, WeaponID)
+  DedicatedServer -> CombatValidator: VerifyHitAndCalculateDamage(TargetID, WeaponID)
+  CombatValidator -> GameSimulation: ApplyDamageToEnemy(enemyId, calculatedDamage)
   GameSimulation -> CombatValidator: DamageApplied()
-  CombatValidator -> DedicatedServer: AttackValidated()
+  CombatValidator -> DedicatedServer: HitConfirmed()
   DedicatedServer -> GameClient: ConfirmHit(enemyId, damage)
   GameClient -> Player: Show hit feedback
   GameSimulation -> Enemy: NotifyDamageReceived(damage, source)
@@ -145,12 +145,13 @@ group "Enemy Reactions: Grenade Threat"
     (if within blast radius)
   end note
   Player -> GameClient: Throw grenade
-  GameClient -> DedicatedServer: SendGrenadeThrow(position)
-  DedicatedServer -> GameSimulation: SpawnGrenade(position)
-  GameSimulation -> Enemy: NotifyGrenadeThreat(position, radius)
+  GameClient -> DedicatedServer: GrenadeInput(ThrowDirection, ChargeTime)
+  DedicatedServer -> GameSimulation: SimulateProjectilePath()
+  GameSimulation -> GameSimulation: SpawnGrenade(CalculatedPosition)
+  GameSimulation -> Enemy: NotifyGrenadeThreat(CalculatedPosition, radius)
   Enemy -> Enemy: EvaluateThreat()
   alt Within Danger Radius
-    Enemy -> Enemy: FleeFrom(position)
+    Enemy -> Enemy: FleeFrom(CalculatedPosition)
     Enemy -> AIController: FleeBehavior(enemyId, fleeVector)
     AIController -> NetworkServer: BroadcastEnemyFlee(enemyId, fleeVector)
     NetworkServer -> GameClient: EnemyFleeUpdate(enemyId, fleeVector)

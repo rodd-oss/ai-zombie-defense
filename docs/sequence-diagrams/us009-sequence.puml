@@ -121,8 +121,8 @@ group "3. Preparation Phase (Building, Purchasing)"
   
   Player -> ShopComponent: Purchase weapon
   ShopComponent -> NetworkClient: Send purchase request
-  NetworkClient -> NetworkServer: Purchase weapon (weapon ID, cost)
-  NetworkServer -> EconomyValidator: Validate scrap balance
+  NetworkClient -> NetworkServer: Purchase weapon (Weapon ID)
+  NetworkServer -> EconomyValidator: Lookup cost & check balance
   EconomyValidator -> GameSimulation: Deduct scrap, add weapon
   GameSimulation -> EconomyValidator: Weapon granted
   EconomyValidator -> NetworkServer: Purchase successful
@@ -132,8 +132,8 @@ group "3. Preparation Phase (Building, Purchasing)"
   
   Player -> BuildingSystem: Place building
   BuildingSystem -> NetworkClient: Send building placement
-  NetworkClient -> NetworkServer: Building placement request
-  NetworkServer -> BuildingValidator: Validate placement & scrap cost
+  NetworkClient -> NetworkServer: Building placement request (TypeID, Position, Rotation)
+  NetworkServer -> BuildingValidator: Validate placement & lookup cost
   BuildingValidator -> GameSimulation: Deduct scrap, spawn building
   GameSimulation -> BuildingValidator: Building spawned
   BuildingValidator -> NetworkServer: Placement successful
@@ -163,9 +163,9 @@ group "4. Wave Progression (Defend POIs, Combat)"
     CombatSystem -> Player: Enemies appear
     
     Player -> CombatSystem: Attack enemies
-    CombatSystem -> NetworkClient: Send damage event
-    NetworkClient -> NetworkServer: Damage enemy
-    NetworkServer -> CombatValidator: Validate damage & kill
+    CombatSystem -> NetworkClient: Report hit (TargetID, WeaponID)
+    NetworkClient -> NetworkServer: Hit report
+    NetworkServer -> CombatValidator: Verify hit & calculate damage
     CombatValidator -> EconomyValidator: Award scrap for kill
     EconomyValidator -> GameSimulation: Update player scrap
     GameSimulation -> EconomyValidator: Scrap updated
@@ -279,7 +279,7 @@ group "6. Return to Server Browser (Persistence)"
   BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
   BackendAPI -> APIGateway: Route request
   APIGateway -> ProgressionService: Set equipped cosmetic
-  ProgressionService -> Database: Store equipped cosmetic
+  ProgressionService -> Database: Verify ownership & store equipped cosmetic
   ProgressionService -> BackendAPI: Update confirmed
   BackendAPI -> GameClient: Equip successful
   GameClient -> Player: Update character appearance

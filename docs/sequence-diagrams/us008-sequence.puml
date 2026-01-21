@@ -126,7 +126,7 @@ group "3. Character Cosmetic Customization"
   BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
   BackendAPI -> APIGateway: Route request
   APIGateway -> ProgressionService: Update equipped cosmetic
-  ProgressionService -> SQLC: Store equipped cosmetic
+  ProgressionService -> SQLC: Verify ownership & store equipped cosmetic
   SQLC -> Database: UPDATE player_loadout
   Database -> SQLC: Update successful
   SQLC -> ProgressionService: Update confirmed
@@ -169,13 +169,13 @@ group "4. Purchase Cosmetics from Store (using Data currency)"
   GameClient -> ShopComponent: Show balance
   
   Player -> ShopComponent: Select cosmetic item to purchase
-  ShopComponent -> EconomyManager: Request purchase (item ID, price)
+  ShopComponent -> EconomyManager: Request purchase (item ID)
   EconomyManager -> BackendAPIClient: Send purchase request
   BackendAPIClient -> BackendAPI: HTTP POST /store/purchase
   BackendAPI -> APIGateway: Route request
   APIGateway -> ProgressionService: Process purchase
-  ProgressionService -> SQLC: Check balance & deduct currency
-  SQLC -> Database: UPDATE player_currency SET data_currency = data_currency - price
+  ProgressionService -> SQLC: Lookup price, check balance & deduct currency
+  SQLC -> Database: UPDATE player_currency SET data_currency = data_currency - (SELECT price FROM items WHERE id = item_id)
   SQLC -> Database: INSERT INTO player_cosmetics (player_id, cosmetic_id)
   Database -> SQLC: Purchase successful
   SQLC -> ProgressionService: Purchase confirmed

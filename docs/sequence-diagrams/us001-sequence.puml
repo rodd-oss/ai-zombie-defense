@@ -49,12 +49,12 @@ skinparam DatabaseBackgroundColor #FFF3E0
 ' === Section 1: During Match - Earn Currency ===
 group "During Match: Earn Scrap from Killing Enemies"
   note right of DedicatedServer
-    Server-authoritative: Dedicated Server validates kills
-    and awards scrap via Economy Validator
+    Server-authoritative: Dedicated Server calculates damage,
+    validates kills and awards scrap via Economy Validator
   end note
-  Player -> CombatSystem: Attack enemy (local)
-  CombatSystem -> DedicatedServer: Send damage event
-  DedicatedServer -> CombatValidator: Validate damage & kill
+  Player -> CombatSystem: Attack enemy (local input)
+  CombatSystem -> DedicatedServer: Report hit (TargetID, WeaponID)
+  DedicatedServer -> CombatValidator: Verify hit & calculate damage
   CombatValidator -> EconomyValidator: Award scrap for kill
   EconomyValidator -> GameSimulation: Update player scrap balance
   GameSimulation -> EconomyValidator: Confirm update
@@ -88,8 +88,8 @@ group "During Match: Purchase Temporary Skill Upgrade"
   ShopComponent -> ProgressionManager: Request available upgrades
   ProgressionManager -> ShopComponent: Return upgrade options
   Player -> ShopComponent: Select upgrade (e.g., +10% health)
-  ShopComponent -> DedicatedServer: Purchase request (skill point cost)
-  DedicatedServer -> EconomyValidator: Validate skill point balance
+  ShopComponent -> DedicatedServer: Purchase request (Upgrade ID)
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   alt Sufficient skill points
     EconomyValidator -> GameSimulation: Deduct skill points, apply upgrade
     GameSimulation -> EconomyValidator: Upgrade applied
@@ -110,8 +110,8 @@ group "During Match: Purchase Weapon with Scrap"
   ShopComponent -> EconomyManager: Request available weapons & scrap balance
   EconomyManager -> ShopComponent: Return weapon list
   Player -> ShopComponent: Select weapon purchase
-  ShopComponent -> DedicatedServer: Purchase request (weapon ID, scrap cost)
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  ShopComponent -> DedicatedServer: Purchase request (Weapon ID)
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   alt Sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, add weapon to player inventory
     GameSimulation -> EconomyValidator: Weapon granted
@@ -131,10 +131,10 @@ group "During Match: Purchase Building with Scrap"
   ShopComponent -> EconomyManager: Request building options & scrap balance
   EconomyManager -> ShopComponent: Return building list
   Player -> ShopComponent: Select building purchase
-  ShopComponent -> DedicatedServer: Purchase request (building type, scrap cost)
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  ShopComponent -> DedicatedServer: Purchase request (Building ID, Position, Rotation)
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   alt Sufficient scrap
-    EconomyValidator -> BuildingValidator: Validate placement (if applicable)
+    EconomyValidator -> BuildingValidator: Validate placement rules
     BuildingValidator -> GameSimulation: Deduct scrap, spawn building
     GameSimulation -> BuildingValidator: Building spawned
     BuildingValidator -> DedicatedServer: Purchase successful
@@ -199,7 +199,7 @@ group "Between Matches: Equip Cosmetics"
   BackendAPIClient -> BackendAPI: HTTP PUT /cosmetics/equipped
   BackendAPI -> APIGateway: Route request
   APIGateway -> ProgressionService: Set equipped cosmetic
-  ProgressionService -> Database: Store equipped cosmetic
+  ProgressionService -> Database: Verify ownership & store equipped cosmetic
   ProgressionService -> BackendAPI: Update confirmed
   BackendAPI -> GameClient: Equip successful
   GameClient -> Player: Update character appearance

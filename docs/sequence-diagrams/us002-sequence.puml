@@ -49,13 +49,13 @@ skinparam DatabaseBackgroundColor #FFF3E0
 ' === Section 1: Earn Scrap from Killing Enemies ===
 group "Earn Scrap from Killing Enemies"
   note right of DedicatedServer
-    Server-authoritative: Dedicated Server validates kills
-    and awards scrap via Economy Validator.
+    Server-authoritative: Dedicated Server calculates damage,
+    validates kills and awards scrap via Economy Validator.
     Scrap is used for in-map purchases (weapons, ammo, buildings, upgrades).
   end note
   Player -> CombatSystem: Attack enemy (local)
-  CombatSystem -> DedicatedServer: Send damage event
-  DedicatedServer -> CombatValidator: Validate damage & kill
+  CombatSystem -> DedicatedServer: Report hit (TargetID, WeaponID)
+  DedicatedServer -> CombatValidator: Verify hit & calculate damage
   CombatValidator -> EconomyValidator: Award scrap for kill
   EconomyValidator -> GameSimulation: Update player scrap balance
   GameSimulation -> EconomyValidator: Confirm update
@@ -99,8 +99,8 @@ group "Special Enemies Drop Cosmetic Items (Loot Drops)"
     Loot drops are determined by Loot Service based on loot tables.
   end note
   Player -> CombatSystem: Attack special enemy
-  CombatSystem -> DedicatedServer: Send damage event
-  DedicatedServer -> CombatValidator: Validate damage & kill
+  CombatSystem -> DedicatedServer: Report hit (TargetID, WeaponID)
+  DedicatedServer -> CombatValidator: Verify hit & calculate damage
   CombatValidator -> WaveManager: Special enemy defeated
   WaveManager -> ServerBackendAPIClient: Request loot drop for player
   ServerBackendAPIClient -> BackendAPI: HTTP POST /loot/drop
@@ -131,8 +131,8 @@ group "Purchase Consumables/Temporary Gear (using Scrap)"
   ShopComponent -> EconomyManager: Request available items & scrap balance
   EconomyManager -> ShopComponent: Return item list with scrap costs
   Player -> ShopComponent: Select consumable/temporary gear purchase
-  ShopComponent -> DedicatedServer: Purchase request (item ID, scrap cost)
-  DedicatedServer -> EconomyValidator: Validate scrap balance
+  ShopComponent -> DedicatedServer: Purchase request (Item ID)
+  DedicatedServer -> EconomyValidator: Lookup cost & check balance
   alt Sufficient scrap
     EconomyValidator -> GameSimulation: Deduct scrap, add item to inventory
     GameSimulation -> EconomyValidator: Item granted
@@ -171,7 +171,7 @@ group "Purchase Permanent Cosmetics (using Data Currency)"
   ShopComponent -> BackendAPIClient: Purchase request (cosmetic ID)
   BackendAPIClient -> BackendAPI: HTTP POST /cosmetics/purchase
   BackendAPI -> APIGateway: Route request
-  APIGateway -> ProgressionService: Validate purchase (Data balance, ownership)
+  APIGateway -> ProgressionService: Validate purchase (Lookup cost, check Data balance & ownership)
   alt Sufficient Data & not owned
     ProgressionService -> Database: Deduct Data, unlock cosmetic
     Database -> ProgressionService: Purchase confirmed

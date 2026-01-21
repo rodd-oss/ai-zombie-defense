@@ -50,7 +50,7 @@ group "Text Chat: Send Message to Party/Server Channel"
   SocialUI -> NetworkClient: Send chat message (channel, content)
   NetworkClient -> DedicatedServer: UDP packet (chat event)
   DedicatedServer -> NetworkServer: Process chat message
-  NetworkServer -> PartyManager: Determine recipients (party members)
+  NetworkServer -> PartyManager: Validate permissions & determine recipients
   PartyManager -> NetworkServer: List of recipient player IDs
   NetworkServer -> DedicatedServer: Broadcast message to recipients
   DedicatedServer -> GameClient: Deliver message to each recipient
@@ -89,7 +89,7 @@ group "Ping System: Place Visual Marker"
   SocialUI -> NetworkClient: Send ping data (type, world position)
   NetworkClient -> DedicatedServer: UDP packet (ping event)
   DedicatedServer -> NetworkServer: Process ping
-  NetworkServer -> GameSimulation: Validate ping position (within bounds)
+  NetworkServer -> GameSimulation: Validate ping (Position, Cooldown, Permissions)
   GameSimulation -> NetworkServer: Validation result
   alt Valid ping
     NetworkServer -> DedicatedServer: Broadcast ping to all players in range
