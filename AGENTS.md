@@ -150,3 +150,4 @@ Tasks are defined in `package.json` under the `"tasks"` key. Reference other tas
 
 - Always run `bun task check` before committing to ensure code quality.
 - When adding new packages, update the appropriate workspace configuration (Cargo.toml, pyproject.toml, go.work, package.json).
+- **Ralph autonomous agent**: The `scripts/ralph/ralph.sh` script supports `amp`, `claude`, and `opencode` tools. Use `--tool opencode` to run with OpenCode. Ensure OpenCode is configured with appropriate permissions for autonomous operation.

@@ -2,7 +2,7 @@
 title Code-level Class Diagram for Loot Service
 
 ' Roles:
-' - LootController: Handles HTTP requests from Game Client and Dedicated Server (Go/Gin).
+' - LootController: Handles HTTP requests from Game Client and Dedicated Server (Go/Fiber).
 ' - LootService: Core business logic for weighted drops, reward calculation, and orchestration.
 ' - LootRepository: Data access layer for loot tables, entries, and cosmetics via SQLC.
 ' - WeightedRandomPicker: Utility class for selecting items based on weighted probabilities.
@@ -78,9 +78,9 @@ package "Internal / Logic" {
 package "API / Controller" {
     class LootController {
         - service: ILootService
-        + GetCatalog(c: *gin.Context)
-        + RequestDrop(c: *gin.Context)
-        + GetTableConfig(c: *gin.Context)
+        + GetCatalog(c: *fiber.Ctx)
+        + RequestDrop(c: *fiber.Ctx)
+        + GetTableConfig(c: *fiber.Ctx)
     }
 }
 
