@@ -216,3 +216,13 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Cosmetic slot types are defined in CHECK constraints; adding new types requires updating both cosmetic_items and loadout_cosmetics tables
   - EquipCosmetic endpoint automatically creates default loadout if none exists
 ---
+## 2026-01-22 20:45 UTC - US-018
+- Verified match history storage and retrieval API endpoints already implemented
+- POST /matches and GET /matches/history endpoints are registered with JWT middleware protection
+- Tests for both endpoints pass successfully
+- Files changed: scripts/ralph/prd.json (updated passes flag)
+- **Learnings for future iterations:**
+  - Match storage endpoints are already implemented and follow the pattern: SQL queries, service methods, handlers, routes, tests
+  - StoreMatch endpoint expects JWT authentication (player token); future server authentication may require separate middleware
+  - Match history endpoint includes player-specific stats via JOIN query
+---
