@@ -1,0 +1,182 @@
+@startuml Combat System - Class Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Class Diagram for Combat System Component (Game Client)
+
+' Setting up the C4 look for a class diagram
+skinparam class {
+    BackgroundColor White
+    ArrowColor #2C3E50
+    BorderColor #2C3E50
+    FontSize 12
+}
+
+package "Combat System Component" {
+
+    class CombatSystem <<GDScript>> {
+        - active_weapon: Weapon
+        - inventory: Inventory
+        - player_state: PlayerState
+        - combat_stats: CombatStats
+        
+        ' Participant Role: Orchestrates combat logic and client-side prediction
+        
+        + select_weapon(weapon_id: String): void
+        + fire_weapon(aim_direction: Vector3, timestamp: long): void
+        + reload_weapon(): void
+        + use_healing_item(item_id: String): void
+        + revive_teammate(target_player_id: String): void
+        
+        + on_hit_confirmed(result: DamageResult): void
+        + on_enemy_update(enemies: Array<EnemyData>): void
+        + on_player_damage_received(amount: float, source_id: String): void
+        + on_weapon_purchased(weapon_data: Dictionary): void
+        
+        - predict_hit(ray_origin: Vector3, ray_dir: Vector3): HitPrediction
+        - trigger_visual_feedback(type: FeedbackType, data: Dictionary): void
+        - update_hud_state(): void
+    }
+
+    class Weapon <<Resource>> {
+        ' Referenced from ERD: cosmetic_items (skins)
+        + weapon_id: String
+        + weapon_name: String
+        + type: WeaponType
+        + base_damage: float
+        + rate_of_fire: float
+        + accuracy_spread: float
+        + reload_time: float
+        + clip_size: int
+        + current_clip: int
+        + ammo_type: AmmoType
+        
+        + calculate_damage(distance: float, bone_hit: String): float
+    }
+
+    class Inventory <<GDScript>> {
+        ' Referenced from ERD: loadouts
+        - equipped_weapons: Array<Weapon>
+        - ammo_reserves: Dictionary<AmmoType, int>
+        
+        + add_weapon(weapon: Weapon): void
+        + remove_weapon(weapon_id: String): void
+        + consume_ammo(type: AmmoType, amount: int): bool
+        + add_ammo(type: AmmoType, amount: int): void
+        + get_active_loadout(): Array<Weapon>
+    }
+
+    class PlayerState <<GDScript>> {
+        + health: float
+        + armor: float
+        + is_downed: bool
+        + revive_progress: float
+        
+        + apply_damage(amount: float): void
+        + apply_healing(amount: float): void
+        + set_downed_state(status: bool): void
+    }
+
+    class CombatStats <<Entity>> {
+        ' Referenced from ERD: player_match_stats
+        + total_damage_dealt: float
+        + total_damage_taken: float
+        + zombies_killed: int
+        + headshots: int
+        + healing_provided: float
+        + teammate_revives: int
+    }
+
+    enum WeaponType {
+        RANGED
+        MELEE
+        THROWABLE
+    }
+
+    enum AmmoType {
+        LIGHT
+        MEDIUM
+        HEAVY
+        SHELLS
+        EXPLOSIVE
+    }
+
+    class DamageResult <<Data>> {
+        + target_id: String
+        + damage_amount: float
+        + is_lethal: bool
+        + is_critical: bool
+        + scrap_reward: int
+    }
+    
+    class EnemyData <<Data>> {
+        + enemy_id: String
+        + position: Vector3
+        + type: EnemyType
+        + health_percent: float
+        + animation_state: String
+    }
+
+    class HitPrediction <<Data>> {
+        + hit_detected: bool
+        + target_id: String
+        + hit_position: Vector3
+        + surface_type: String
+    }
+}
+
+' External components for interaction context
+package "Other Client Components" {
+    class NetworkClient <<Component>> {
+        + send_hit_report(target_id: String, weapon_id: String, timestamp: long): void
+        + send_fire_event(weapon_id: String, direction: Vector3, time: long): void
+        + send_reload_request(weapon_id: String): void
+        + send_heal_request(item_id: String): void
+        + send_revive_request(player_id: String): void
+    }
+
+    class EconomyManager <<Component>> {
+        ' Referenced from ERD: player_progression (data_currency)
+        + update_scrap_balance(delta: int): void
+        + get_scrap_balance(): int
+    }
+
+    class GameplayController <<Component>> {
+        + report_combat_event(type: String, data: Dictionary): void
+        + get_current_phase(): String
+    }
+}
+
+' Relationships between classes
+CombatSystem "1" *-- "1" Inventory : "manages"
+CombatSystem "1" *-- "1" PlayerState : "tracks health"
+CombatSystem "1" *-- "1" CombatStats : "accumulates"
+Inventory "1" o-- "many" Weapon : "contains"
+CombatSystem ..> DamageResult : "receives"
+CombatSystem ..> EnemyData : "processes"
+CombatSystem ..> HitPrediction : "generates"
+
+' Interactions with other components
+CombatSystem ..> NetworkClient : "syncs with server via"
+CombatSystem ..> EconomyManager : "updates scrap via"
+CombatSystem ..> GameplayController : "reports to"
+
+' ERD Entity Mapping Notes
+note right of CombatStats
+  **ERD Mapping:**
+  Maps to **player_match_stats** table.
+  Aggregated into **player_progression**.
+end note
+
+note right of Weapon
+  **ERD Mapping:**
+  Weapon types and skins defined in
+  **cosmetic_items**.
+end note
+
+note right of Inventory
+  **ERD Mapping:**
+  Reflects player's active **loadouts**
+  and owned **player_cosmetics**.
+end note
+
+@enduml

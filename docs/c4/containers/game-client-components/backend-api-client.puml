@@ -1,0 +1,188 @@
+@startuml
+title Backend API Client - Class Diagram (C4 Code Level)
+
+' This diagram represents the code-level structure of the Backend API Client 
+' component within the Game Client, as derived from sequence diagrams and the ERD.
+
+package "Game Client :: Components" {
+    class BackendAPIClient {
+        - baseUrl: String
+        - authToken: String
+        --
+        + login(credentials: LoginCredentials): AuthResponse
+        + fetchServerList(): List<ServerInfo>
+        + getServerJoinToken(serverId: Int): JoinToken
+        + getPartyJoinToken(serverId: Int, partyId: Int): JoinToken
+        + fetchPlayerProgression(): PlayerProgression
+        + fetchUnlockedCosmetics(): List<CosmeticItem>
+        + fetchCosmeticCatalog(): List<CosmeticItem>
+        + purchaseCosmetic(cosmeticId: Int): PurchaseResult
+        + updateEquippedCosmetic(cosmeticId: Int): Boolean
+        + fetchCurrencyBalances(): CurrencyBalances
+        + fetchFriendList(): List<FriendInfo>
+        + sendFriendRequest(username: String): Boolean
+        + fetchPendingFriendRequests(): List<FriendRequest>
+        + acceptFriendRequest(requestId: Int): Boolean
+        + createParty(): PartyInfo
+        + sendPartyInvite(friendId: Int): Boolean
+        + fetchLeaderboard(period: String): List<LeaderboardEntry>
+        + fetchMissionProgress(): List<MissionProgress>
+    }
+
+    class ProgressionManager {
+        + loadProgression()
+        + updateLocalCache()
+    }
+
+    class EconomyManager {
+        + refreshBalances()
+        + processTransaction()
+    }
+
+    class ServerBrowser {
+        + refreshServers()
+        + joinServer(serverId: Int)
+    }
+
+    class ShopComponent {
+        + loadStore()
+        + buyItem(itemId: Int)
+    }
+
+    class CharacterCustomization {
+        + loadInventory()
+        + equipItem(itemId: Int)
+    }
+
+    class SocialUI {
+        + refreshFriends()
+        + addFriend(username: String)
+        + handlePartyInvite()
+    }
+
+    class SettingsComponent {
+        + viewLeaderboards()
+        + trackMissions()
+    }
+}
+
+package "Game Client :: DTOs" {
+    class LoginCredentials {
+        + username: String
+        + password: String
+    }
+
+    class AuthResponse {
+        + jwtToken: String
+        + player_id: Int
+        + username: String
+    }
+
+    class JoinToken {
+        + token: String
+        + connection_info: String
+    }
+
+    class PurchaseResult {
+        + success: Boolean
+        + data_currency_remaining: Int
+        + unlocked_cosmetic_id: Int
+    }
+
+    class CurrencyBalances {
+        + data_currency: Int
+        + scrap: Int
+    }
+
+    class FriendRequest {
+        + request_id: Int
+        + from_username: String
+        + created_at: DateTime
+    }
+
+    class PartyInfo {
+        + party_id: Int
+        + invite_code: String
+    }
+
+    class MissionProgress {
+        + mission_id: Int
+        + name: String
+        + progress_percentage: Float
+        + is_completed: Boolean
+    }
+}
+
+package "Entities (from ERD)" {
+    class PlayerProgression <<entity>> {
+        + player_id: Int
+        + level: Int
+        + experience: Int
+        + prestige_level: Int
+        + data_currency: Int
+        + total_matches_played: Int
+        + total_waves_survived: Int
+        + total_kills: Int
+        + total_deaths: Int
+    }
+
+    class CosmeticItem <<entity>> {
+        + cosmetic_id: Int
+        + name: String
+        + description: String
+        + slot: Enum
+        + rarity: Enum
+        + data_cost: Int
+    }
+
+    class ServerInfo <<entity>> {
+        + server_id: Int
+        + name: String
+        + ip_address: String
+        + port: Int
+        + current_players: Int
+        + max_players: Int
+        + region: String
+        + map_rotation: String
+    }
+
+    class FriendInfo <<entity>> {
+        + player_id: Int
+        + friend_id: Int
+        + username: String
+        + status: Enum
+    }
+
+    class LeaderboardEntry <<entity>> {
+        + rank: Int
+        + player_id: Int
+        + username: String
+        + score: Int
+    }
+}
+
+' Relationships
+ProgressionManager --> BackendAPIClient : "uses"
+EconomyManager --> BackendAPIClient : "uses"
+ServerBrowser --> BackendAPIClient : "uses"
+ShopComponent --> BackendAPIClient : "uses"
+CharacterCustomization --> BackendAPIClient : "uses"
+SocialUI --> BackendAPIClient : "uses"
+SettingsComponent --> BackendAPIClient : "uses"
+
+BackendAPIClient ..> LoginCredentials : "param"
+BackendAPIClient ..> AuthResponse : "returns"
+BackendAPIClient ..> JoinToken : "returns"
+BackendAPIClient ..> PurchaseResult : "returns"
+BackendAPIClient ..> CurrencyBalances : "returns"
+BackendAPIClient ..> FriendRequest : "returns"
+BackendAPIClient ..> PartyInfo : "returns"
+BackendAPIClient ..> MissionProgress : "returns"
+
+BackendAPIClient ..> PlayerProgression : "references"
+BackendAPIClient ..> CosmeticItem : "references"
+BackendAPIClient ..> ServerInfo : "references"
+BackendAPIClient ..> FriendInfo : "references"
+BackendAPIClient ..> LeaderboardEntry : "references"
+
+@enduml

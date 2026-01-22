@@ -1,0 +1,95 @@
+@startuml
+title Settings Component - Class Diagram (C4 Code-level)
+
+package "Game Client" {
+    class SettingsComponent <<GDScript>> {
+        -- UI Methods --
+        + openLeaderboards(): void
+        + openMissionTracking(): void
+        + openGeneralSettings(): void
+        -- Data Handling --
+        - onLeaderboardDataReceived(data: List<LeaderboardEntry>): void
+        - onMissionsLoaded(missions: List<MissionProgress>): void
+        -- Actions --
+        + updateKeyBindings(bindings: JSON): void
+        + updateSensitivity(value: float): void
+        + toggleAccessibilityOption(option: String, enabled: bool): void
+        + saveSettings(): void
+    }
+
+    class BackendAPIClient <<GDScript>> {
+        + fetchLeaderboardData(period: String): Promise<List<LeaderboardEntry>>
+        + fetchMissionProgress(): Promise<List<MissionProgress>>
+    }
+
+    class ProgressionManager <<GDScript>> {
+        - cachedMissions: List<MissionProgress>
+        + loadActiveMissions(): List<MissionProgress>
+        + refreshMissionProgress(): void
+    }
+
+    class LocalStorage <<GDScript>> {
+        + saveValue(key: String, value: Variant): void
+        + getValue(key: String, default: Variant): Variant
+        + saveSettings(settings: PlayerSettings): void
+        + loadSettings(): PlayerSettings
+    }
+
+    class PlayerSettings <<Entity>> {
+        + player_id: int
+        + key_bindings: JSON
+        + mouse_sensitivity: float
+        + ui_scale: float
+        + color_blind_mode: bool
+        + subtitles_enabled: bool
+    }
+
+    class LeaderboardEntry <<Entity>> {
+        + rank: int
+        + username: String
+        + score: int
+        + matches_played: int
+        + avg_kills_per_match: float
+        + avg_waves_survived: float
+    }
+
+    class MissionProgress <<DTO>> {
+        + mission_id: int
+        + title: String
+        + description: String
+        + current_value: int
+        + target_value: int
+        + is_completed: bool
+        + rewards: JSON
+    }
+}
+
+' Relationships
+SettingsComponent ..> LeaderboardEntry : "displays"
+SettingsComponent ..> MissionProgress : "displays"
+SettingsComponent ..> PlayerSettings : "modifies"
+
+SettingsComponent --> BackendAPIClient : "fetches leaderboards"
+SettingsComponent --> ProgressionManager : "loads missions"
+SettingsComponent --> LocalStorage : "persists preferences"
+
+ProgressionManager --> BackendAPIClient : "syncs mission data"
+ProgressionManager --> LocalStorage : "caches progress"
+
+' Notes
+note right of SettingsComponent
+  US008: Manages Leaderboards 
+  and Mission Tracking UI
+end note
+
+note bottom of PlayerSettings
+  Maps to 'player_settings' table 
+  in database-erd.puml
+end note
+
+note bottom of LeaderboardEntry
+  Maps to 'leaderboard_entries' 
+  in database-erd.puml
+end note
+
+@enduml

@@ -1,0 +1,146 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Class Diagram for Shop Component (Game Client)
+
+package "Game Client Components" {
+    class ShopComponent <<Component>> {
+        + open_weapon_shop(): void
+        + open_building_shop(): void
+        + open_consumable_shop(): void
+        + open_skill_tree(): void
+        + open_cosmetic_store(): void
+        + open_in_map_shop(): void
+        + open_main_menu_store(): void
+        + purchase_weapon(weapon_id: String): void
+        + purchase_building(building_id: String, position: Vector3, rotation: Quaternion): void
+        + purchase_consumable(item_id: String): void
+        + purchase_upgrade(upgrade_id: String): void
+        + purchase_cosmetic(cosmetic_id: String): void
+        + equip_cosmetic(cosmetic_id: String): void
+        - display_items(items: List): void
+        - on_purchase_response(success: boolean, message: String): void
+    }
+
+    class EconomyManager <<Component>> {
+        - scrap_balance: int
+        - data_balance: int
+        + get_scrap_balance(): int
+        + get_data_balance(): int
+        + request_balances(): void
+        + has_sufficient_scrap(amount: int): boolean
+        + has_sufficient_data(amount: int): boolean
+    }
+
+    class ProgressionManager <<Component>> {
+        - current_progression: PlayerProgression
+        + get_available_upgrades(): List<UpgradeItem>
+        + get_cosmetic_catalog(): List<CosmeticItem>
+        + get_unlocked_cosmetics(): List<CosmeticItem>
+        + load_progression(): void
+    }
+
+    class BuildingSystem <<Component>> {
+        + start_placement_preview(building_id: String): void
+        + cancel_placement(): void
+    }
+
+    class NetworkClient <<Component>> {
+        + send_rpc_purchase_weapon(weapon_id: String): void
+        + send_rpc_purchase_building(building_id: String, pos: Vector3, rot: Quaternion): void
+        + send_rpc_purchase_upgrade(upgrade_id: String): void
+    }
+
+    class BackendAPIClient <<Component>> {
+        + api_purchase_cosmetic(cosmetic_id: String): PurchaseResult
+        + api_update_equipped_cosmetic(cosmetic_id: String): void
+    }
+}
+
+package "Data Models / Entities" {
+    class PlayerProgression <<Entity>> {
+        + level: int
+        + experience: int
+        + data_currency: int
+        + total_scrap_earned: int
+    }
+
+    class CosmeticItem <<Entity>> {
+        + cosmetic_id: String
+        + name: String
+        + description: String
+        + slot: String
+        + rarity: String
+        + data_cost: int
+    }
+
+    class WeaponItem <<Data>> {
+        + weapon_id: String
+        + name: String
+        + scrap_cost: int
+        + damage: float
+        + fire_rate: float
+    }
+
+    class BuildingItem <<Data>> {
+        + building_id: String
+        + name: String
+        + scrap_cost: int
+        + category: String
+    }
+
+    class UpgradeItem <<Data>> {
+        + upgrade_id: String
+        + name: String
+        + skill_point_cost: int
+        + description: String
+    }
+    
+    class PurchaseResult <<Data>> {
+        + success: boolean
+        + error_message: String
+        + transaction_id: String
+    }
+}
+
+' External Systems
+package "External Systems" {
+    class DedicatedServer <<Container>> {
+        + Hosts game sessions
+    }
+    class BackendAPI <<Container>> {
+        + Persistent data API
+    }
+}
+
+' Relationships
+ShopComponent ..> EconomyManager : "Checks balance and costs"
+ShopComponent ..> ProgressionManager : "Fetches available items and upgrades"
+ShopComponent ..> BuildingSystem : "Initiates building placement preview"
+ShopComponent ..> NetworkClient : "Forwards in-match purchase requests"
+ShopComponent ..> BackendAPIClient : "Requests cosmetic purchases and updates"
+
+NetworkClient ..> DedicatedServer : "RPC Purchase Requests (UDP)"
+BackendAPIClient ..> BackendAPI : "API Purchase Requests (HTTPS)"
+
+ShopComponent o-- WeaponItem : "Displays to player"
+ShopComponent o-- BuildingItem : "Displays to player"
+ShopComponent o-- UpgradeItem : "Displays to player"
+ShopComponent o-- CosmeticItem : "Displays to player"
+
+ProgressionManager *-- PlayerProgression : "Manages"
+ProgressionManager o-- CosmeticItem : "Tracks ownership"
+
+' Notes on roles
+note top of ShopComponent
+  **Role:** Coordinator for all purchasing flows.
+  Translates player UI actions into requests
+  for specific game systems.
+end note
+
+note bottom of EconomyManager
+  **Role:** Authority for local currency state.
+  Tracks Scrap (per-match) and Data (persistent).
+end note
+
+@enduml

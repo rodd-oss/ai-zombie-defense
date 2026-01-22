@@ -1,0 +1,74 @@
+@startuml
+title Leaderboard Service Component - Class Diagram
+
+package "Backend API" {
+    class LeaderboardService <<Component>> {
+        + GetLeaderboardRankings(period: LeaderboardPeriod): List<LeaderboardEntry>
+        + GetPlayerRank(playerID: Integer, period: LeaderboardPeriod): LeaderboardEntry
+        + UpdateLeaderboards(): void
+        - calculateRankings(period: LeaderboardPeriod): void
+        - aggregateStatsFromMatchHistory(playerID: Integer): AggregatedStats
+    }
+
+    class MatchHistoryService <<Component>> {
+        + GetStatsForAggregation(period: LeaderboardPeriod): List<PlayerMatchStats>
+    }
+
+    class APIGateway <<Component>> {
+        + RouteToLeaderboardService(request: Request): Response
+    }
+
+    class SQLCGenerated <<Component>> {
+        + GetLeaderboardEntries(period: String): List<LeaderboardEntryEntity>
+        + GetPlayerLeaderboardEntry(playerID: Integer, period: String): LeaderboardEntryEntity
+        + UpdateLeaderboardEntry(entry: LeaderboardEntryEntity): void
+        + QueryAggregatedMatchStats(period: String): List<AggregatedStatEntity>
+    }
+}
+
+package "Data Models" {
+    class LeaderboardEntry {
+        + rank: Integer
+        + playerID: Integer
+        + username: String
+        + score: Integer
+        + matchesPlayed: Integer
+        + avgKills: Float
+        + avgWaves: Float
+    }
+
+    enum LeaderboardPeriod {
+        DAILY
+        WEEKLY
+        MONTHLY
+        ALL_TIME
+    }
+}
+
+package "Database (ERD References)" {
+    entity "leaderboard_entries" as lb_table
+    entity "player_match_stats" as stats_table
+    entity "players" as players_table
+}
+
+' Relationships
+LeaderboardService --> SQLCGenerated : "Uses for DB access"
+LeaderboardService ..> LeaderboardEntry : "Returns"
+LeaderboardService ..> LeaderboardPeriod : "Uses"
+
+APIGateway --> LeaderboardService : "Routes requests"
+LeaderboardService --> MatchHistoryService : "Queries for aggregation"
+
+SQLCGenerated --> lb_table : "CRUD"
+SQLCGenerated --> stats_table : "Read"
+SQLCGenerated --> players_table : "Read"
+
+note bottom of LeaderboardService
+  **Roles:**
+  - Calculates player rankings based on aggregated match performance.
+  - Serves leaderboard data for different time periods.
+  - Provides contextual ranking for individual players.
+  - Aggregates 'player_match_stats' into 'leaderboard_entries'.
+end note
+
+@enduml

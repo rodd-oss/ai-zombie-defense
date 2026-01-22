@@ -1,0 +1,136 @@
+@startuml Match History Service Class Diagram
+title Class Diagram for Match History Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' Style configuration
+skinparam {
+    ClassBackgroundColor #White
+    ClassBorderColor #264653
+    ClassHeaderBackgroundColor #264653
+    ClassFontColor #264653
+    AttributeFontColor #264653
+    MethodFontColor #264653
+}
+
+package "Controller Layer" {
+    class MatchHistoryController <<Component>> {
+        - service: IMatchHistoryService
+        + SubmitMatchResults(matchData: MatchResultDTO): Response
+        + GetPlayerHistory(playerID: int, limit: int, offset: int): Response
+        + GetMatchDetails(matchID: int): Response
+    }
+}
+
+package "Service Layer" {
+    interface IMatchHistoryService {
+        + CreateMatchRecord(match: Match, stats: []PlayerMatchStats): (int, error)
+        + GetMatchesByPlayer(playerID: int, limit: int, offset: int): ([]Match, error)
+        + GetMatchWithStats(matchID: int): (MatchDetails, error)
+        + GetAggregatedStats(playerID: int, period: TimePeriod): (AggregatedStats, error)
+    }
+
+    class MatchHistoryService <<Component>> {
+        - repo: IMatchHistoryRepository
+        - progressionClient: IProgressionClient
+        + CreateMatchRecord(match: Match, stats: []PlayerMatchStats): (int, error)
+        + GetMatchesByPlayer(playerID: int, limit: int, offset: int): ([]Match, error)
+        + GetMatchWithStats(matchID: int): (MatchDetails, error)
+        + GetAggregatedStats(playerID: int, period: TimePeriod): (AggregatedStats, error)
+    }
+}
+
+package "Data Access Layer" {
+    interface IMatchHistoryRepository {
+        + InsertMatch(match: Match): (int, error)
+        + InsertBatchStats(stats: []PlayerMatchStats): error
+        + FindByPlayerID(playerID: int, limit: int, offset: int): ([]Match, error)
+        + FindMatchByID(matchID: int): (Match, error)
+        + FindStatsByMatchID(matchID: int): ([]PlayerMatchStats, error)
+        + CalculateAggregatedStats(playerID: int, since: time.Time): (AggregatedStats, error)
+    }
+
+    class MatchHistoryRepository <<Component>> {
+        - db: SQLCQueries
+        + InsertMatch(match: Match): (int, error)
+        + InsertBatchStats(stats: []PlayerMatchStats): error
+        + FindByPlayerID(playerID: int, limit: int, offset: int): ([]Match, error)
+        + FindMatchByID(matchID: int): (Match, error)
+        + FindStatsByMatchID(matchID: int): ([]PlayerMatchStats, error)
+    }
+}
+
+package "Domain Models" {
+    class Match {
+        + MatchID: int
+        + ServerID: int
+        + MapName: string
+        + GameMode: string
+        + StartTime: time.Time
+        + EndTime: time.Time
+        + Outcome: MatchOutcome
+        + WavesSurvived: int
+        + TotalZombiesKilled: int
+        + TotalPlayers: int
+    }
+
+    class PlayerMatchStats {
+        + PlayerID: int
+        + MatchID: int
+        + WavesSurvived: int
+        + ZombiesKilled: int
+        + Deaths: int
+        + ScrapEarned: int
+        + DataEarned: int
+        + DamageDealt: int
+        + DamageTaken: int
+        + BuildingsBuilt: int
+        + BuildingsDestroyed: int
+        + HealingGiven: int
+        + Revives: int
+        + Score: int
+    }
+
+    enum MatchOutcome {
+        COMPLETED
+        FAILED
+        ABANDONED
+    }
+
+    class AggregatedStats {
+        + TotalMatches: int
+        + TotalKills: int
+        + AvgWavesSurvived: float
+        + TotalScrap: int
+        + TotalData: int
+        + TotalScore: int
+    }
+
+    enum TimePeriod {
+        DAILY
+        WEEKLY
+        MONTHLY
+        ALL_TIME
+    }
+}
+
+package "Infrastructure / External" {
+    interface IProgressionClient {
+        + UpdateProgression(playerID: int, stats: PlayerMatchStats): error
+    }
+}
+
+' Relationships
+MatchHistoryController --> IMatchHistoryService
+MatchHistoryService ..|> IMatchHistoryService
+MatchHistoryService --> IMatchHistoryRepository
+MatchHistoryService --> IProgressionClient
+MatchHistoryRepository ..|> IMatchHistoryRepository
+
+MatchHistoryService ..> Match
+MatchHistoryService ..> PlayerMatchStats
+MatchHistoryRepository ..> Match
+MatchHistoryRepository ..> PlayerMatchStats
+
+footer Generated for AI Zombie Defense - Match History Service Components
+@enduml

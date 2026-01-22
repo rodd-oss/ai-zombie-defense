@@ -1,0 +1,121 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title C4 Code-level Class Diagram for Account Service
+
+package "Account Service" {
+    class AccountService <<Component>> {
+        +GetProfile(playerID: int): PlayerProfile
+        +UpdateProfile(playerID: int, data: UpdateProfileDTO): boolean
+        +ValidateUser(username: string): boolean
+        +GetFriends(playerID: int): List<Friend>
+        +SendFriendRequest(playerID: int, targetUsername: string): boolean
+        +AcceptFriendRequest(playerID: int, requestID: int): boolean
+        +GetFriendRequests(playerID: int): List<FriendRequest>
+        +CreateParty(playerID: int): Party
+        +InviteToParty(partyID: int, friendID: int): boolean
+        +JoinParty(partyID: int, playerID: int, inviteCode: string): boolean
+        +GetSettings(playerID: int): PlayerSettings
+        +UpdateSettings(playerID: int, settings: PlayerSettings): boolean
+        +GetFavoriteServers(playerID: int): List<ServerFavorite>
+        +AddFavoriteServer(playerID: int, serverID: int, note: string): boolean
+    }
+
+    class PlayerProfile <<DTO>> {
+        +PlayerID: int
+        +Username: string
+        +Email: string
+        +CreatedAt: timestamp
+        +LastLoginAt: timestamp
+        +IsBanned: boolean
+    }
+
+    class UpdateProfileDTO <<DTO>> {
+        +Username: string
+        +Email: string
+    }
+
+    class Friend <<DTO>> {
+        +FriendID: int
+        +Username: string
+        +Status: string
+    }
+
+    class FriendRequest <<DTO>> {
+        +RequestID: int
+        +SenderID: int
+        +SenderUsername: string
+        +CreatedAt: timestamp
+    }
+
+    class Party <<DTO>> {
+        +PartyID: int
+        +LeaderID: int
+        +InviteCode: string
+        +Members: List<int>
+    }
+}
+
+package "Data Models (ERD Entities)" {
+    class Player <<Entity>> {
+        +player_id: int <<PK>>
+        +username: varchar
+        +email: varchar
+        +password_hash: varchar
+        +created_at: timestamp
+        +last_login_at: timestamp
+        +is_banned: boolean
+        +banned_reason: text
+        +banned_until: timestamp
+    }
+
+    class Session <<Entity>> {
+        +session_id: int <<PK>>
+        +player_id: int <<FK>>
+        +token: varchar
+        +expires_at: timestamp
+        +created_at: timestamp
+        +ip_address: varchar
+        +user_agent: text
+    }
+
+    class Friendship <<Entity>> {
+        +player_id: int <<PK>> <<FK>>
+        +friend_id: int <<PK>> <<FK>>
+        +status: enum
+        +created_at: timestamp
+        +updated_at: timestamp
+    }
+
+    class PlayerSettings <<Entity>> {
+        +player_id: int <<PK>> <<FK>>
+        +key_bindings: text
+        +mouse_sensitivity: decimal
+        +ui_scale: decimal
+        +color_blind_mode: boolean
+        +subtitles_enabled: boolean
+        +created_at: timestamp
+        +updated_at: timestamp
+    }
+
+    class ServerFavorite <<Entity>> {
+        +player_id: int <<PK>> <<FK>>
+        +server_id: int <<PK>> <<FK>>
+        +added_at: timestamp
+        +note: varchar
+    }
+}
+
+AccountService ..> PlayerProfile : returns
+AccountService ..> Friend : returns
+AccountService ..> Party : creates/returns
+AccountService ..> UpdateProfileDTO : uses
+AccountService ..> FriendRequest : returns
+
+AccountService --> Player : manages
+AccountService --> Session : manages
+AccountService --> Friendship : manages
+AccountService --> PlayerSettings : manages
+AccountService --> ServerFavorite : manages
+
+@enduml

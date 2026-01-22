@@ -1,0 +1,99 @@
+@startuml
+title Class Diagram - Cache Manager (Leaderboard Website)
+
+' Define the container boundary
+package "Leaderboard Website" {
+    
+    package "Components" {
+        class "UI Framework" as UIFramework <<Vue Component>> {
+            + renderLeaderboard(period: LeaderboardPeriod): void
+            + onFilterChange(period: LeaderboardPeriod): void
+        }
+
+        class "Data Fetcher" as DataFetcher <<Component>> {
+            + fetchLeaderboard(period: LeaderboardPeriod): Promise<void>
+        }
+    }
+
+    package "Stores" {
+        class "useLeaderboardStore" as Store <<Pinia Store>> {
+            -- State --
+            + entries: List<LeaderboardEntry>
+            + lastUpdated: Date | null
+            + loading: Boolean
+            
+            -- Actions --
+            + setEntries(entries: List<LeaderboardEntry>): void
+            + getEntriesByPeriod(period: LeaderboardPeriod): List<LeaderboardEntry>
+            + clearCache(): void
+        }
+    }
+
+    package "Models" {
+        enum LeaderboardPeriod {
+            DAILY
+            WEEKLY
+            MONTHLY
+            ALL_TIME
+        }
+
+        class LeaderboardEntry <<Entity>> {
+            + rank: Integer
+            + playerID: Integer
+            + username: String
+            + score: Integer
+            + matchesPlayed: Integer
+            + avgKills: Float
+            + avgWaves: Float
+            + period: LeaderboardPeriod
+            + updatedAt: Date
+        }
+    }
+}
+
+package "Backend API" {
+    class "Leaderboard Service" as LeaderboardService <<REST API>> {
+        + GET /leaderboards?period={period}
+    }
+}
+
+' Database Reference (from ERD)
+package "Database" {
+    entity "leaderboard_entries" as lb_table
+}
+
+' Relationships
+UIFramework --> Store : "subscribes to state (entries, loading)"
+UIFramework --> DataFetcher : "calls (fetchLeaderboard)"
+DataFetcher --> LeaderboardService : "requests data (HTTP GET)"
+DataFetcher --> Store : "updates cache (setEntries, loading)"
+Store "1" *-- "many" LeaderboardEntry : "caches"
+LeaderboardEntry --> LeaderboardPeriod : "uses"
+LeaderboardEntry ..> lb_table : "maps from"
+
+' Notes on Roles and Interactions
+note bottom of Store
+  **Roles:**
+  - Manages client-side state for leaderboard data using Pinia.
+  - Caches entries to reduce redundant API calls.
+  - Provides reactive accessors for filtered data.
+
+  **Interactions:**
+  - **setEntries(entries)**: Called by DataFetcher after successful API response.
+  - **getEntriesByPeriod(period)**: Returns filtered list of cached entries.
+  - **clearCache()**: Resets state (e.g., on logout or manual refresh).
+end note
+
+note bottom of DataFetcher
+  **Roles:**
+  - Orchestrates data flow between Backend API and Cache Manager.
+  
+  **Interactions:**
+  - **fetchLeaderboard(period)**:
+    1. Sets store loading = true.
+    2. Calls Backend API.
+    3. Calls store.setEntries(data).
+    4. Sets store loading = false.
+end note
+
+@enduml

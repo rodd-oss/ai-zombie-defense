@@ -1,0 +1,90 @@
+@startuml
+title Filter Component - Class Diagram (Code Level)
+
+package "Leaderboard Website" {
+    class FilterComponent <<Vue Component>> {
+        + render(): VNode
+        --
+        - handleSearchInput(query: string): void
+        - handlePeriodSelect(period: LeaderboardPeriod): void
+        - handleSort(field: SortField): void
+        - handleReset(): void
+    }
+
+    class useLeaderboardFilters <<Composable>> {
+        + searchQuery: Ref<string>
+        + selectedPeriod: Ref<LeaderboardPeriod>
+        + sortField: Ref<SortField>
+        + sortOrder: Ref<SortOrder>
+        + filteredEntries: ComputedRef<LeaderboardEntry[]>
+        --
+        + applyFilters(entries: LeaderboardEntry[]): LeaderboardEntry[]
+        + resetFilters(): void
+        + sort(field: SortField): void
+    }
+}
+
+package "Domain Models" {
+    class LeaderboardEntry <<Entity>> {
+        + player_id: Integer
+        + username: String
+        + rank: Integer
+        + score: Integer
+        + matches_played: Integer
+        + avg_kills_per_match: Decimal
+        + avg_waves_survived: Decimal
+        + period: LeaderboardPeriod
+        + updated_at: Timestamp
+    }
+
+    enum LeaderboardPeriod {
+        DAILY
+        WEEKLY
+        MONTHLY
+        ALL_TIME
+    }
+
+    enum SortField {
+        RANK
+        SCORE
+        MATCHES_PLAYED
+        AVG_KILLS
+        AVG_WAVES
+    }
+
+    enum SortOrder {
+        ASC
+        DESC
+    }
+}
+
+' Relationships and Method Calls (Messages)
+FilterComponent ..> useLeaderboardFilters : "calls composable"
+FilterComponent --> LeaderboardPeriod : "provides"
+FilterComponent --> SortField : "provides"
+
+useLeaderboardFilters "1" o-- "many" LeaderboardEntry : "manages reactive view of"
+useLeaderboardFilters ..> LeaderboardPeriod : "filters by"
+useLeaderboardFilters ..> SortField : "sorts by"
+useLeaderboardFilters ..> SortOrder : "applies"
+
+note right of useLeaderboardFilters::applyFilters
+  **Parameters:**
+  - entries: LeaderboardEntry[]
+  **Returns:**
+  - LeaderboardEntry[] (Filtered and sorted subset)
+end note
+
+note right of useLeaderboardFilters::sort
+  **Parameters:**
+  - field: SortField
+  **Behavior:**
+  - Sets sortField. If field is same, toggles sortOrder.
+end note
+
+note right of useLeaderboardFilters::resetFilters
+  **Behavior:**
+  - Resets searchQuery, selectedPeriod, sortField, and sortOrder to defaults.
+end note
+
+@enduml

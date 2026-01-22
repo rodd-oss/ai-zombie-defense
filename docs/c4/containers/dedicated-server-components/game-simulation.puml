@@ -1,0 +1,104 @@
+@startuml Game Simulation Component Class Diagram
+title Dedicated Server - Game Simulation Component (game_simulation)
+
+' Participants and their roles:
+' 1. GameSimulation: Authoritative world state, physics, and entity management.
+' 2. NetworkServer: Handles replication of world state and receiving client inputs.
+' 3. MatchManager: Orchestrates match lifecycle events and player session management.
+' 4. WaveManager: Manages enemy spawning logic and POI status tracking.
+' 5. AIController: Updates enemy AI behaviors, pathfinding, and targeting.
+' 6. EconomyValidator: Applies validated currency and skill point changes to players.
+' 7. BuildingValidator: Applies validated building placement and structural changes.
+' 8. CombatValidator: Applies validated damage, health updates, and hit detection.
+
+package "Dedicated Server" {
+    class GameSimulation <<Component>> {
+        - players: Map<int, PlayerState>
+        - entities: Map<int, EntityState>
+        - pois: Map<int, PoiState>
+        - buildings: Map<int, BuildingState>
+        - worldPhysics: PhysicsServer
+        
+        + addPlayer(playerId: int): void
+        + removePlayer(playerId: int): void
+        + spawnEnemy(type: string, position: Vector3): int
+        + removeEnemy(enemyId: int): void
+        + updateEnemyPosition(enemyId: int, position: Vector3): void
+        + spawnBuilding(playerId: int, typeId: int, pos: Vector3, rot: Quaternion): int
+        + updateBuildingHealth(buildingId: int, delta: float): void
+        + repairBuilding(buildingId: int, amount: float): void
+        + applyUpgrade(buildingId: int, upgradeType: string): void
+        + applyDamage(targetId: int, damage: float, effects: Array): void
+        + applyHealEffect(playerId: int, amount: float): void
+        + deductScrap(playerId: int, amount: int): boolean
+        + addSkillPoints(playerId: int, amount: int): void
+        + requestAmmoDeduction(playerId: int, weaponId: int): boolean
+        + transferAmmoFromReserves(playerId: int, weaponId: int): boolean
+        + checkPOIHealth(poiId: int): float
+        + simulateProjectilePath(start: Vector3, velocity: Vector3): Vector3
+        + spawnLootDrop(enemyId: int, position: Vector3): int
+        + checkLineOfSight(sourceId: int, targetId: int): boolean
+        + scanForTargets(position: Vector3, range: float): Array
+        + resetMatchData(): void
+        + getRewardTotals(): Map
+    }
+
+    class NetworkServer <<Component>> {
+        + broadcastEntityState(state: EntityState): void
+        + broadcastLootDrop(lootId: int, pos: Vector3, type: string): void
+        + updatePlayerHealth(playerId: int, health: float): void
+    }
+
+    class MatchManager <<Component>> {
+        + onPlayerJoined(playerId: int): void
+        + onMatchEnded(rewards: Map): void
+    }
+
+    class AIController <<Component>> {
+        + onEnemySpawned(enemyId: int, type: string): void
+        + onEnemyDied(enemyId: int): void
+        + getSpawnPoints(): Array<Vector3>
+    }
+
+    class WaveManager <<Component>> {
+        + onPoiDestroyed(poiId: int): void
+        + onPoiHealthUpdate(poiId: int, health: float): void
+    }
+
+    class EconomyValidator <<Component>> {
+        + onScrapUpdated(playerId: int, balance: int): void
+        + onSkillPointsUpdated(playerId: int, balance: int): void
+    }
+
+    class BuildingValidator <<Component>> {
+        + onBuildingCreated(buildingId: int): void
+    }
+
+    class CombatValidator <<Component>> {
+        + onDamageApplied(targetId: int, remainingHealth: float): void
+        + onKillConfirmed(attackerId: int, victimId: int): void
+    }
+}
+
+' Relationships
+GameSimulation --> MatchManager : "Notifies lifecycle events via"
+GameSimulation --> AIController : "Notifies entity changes via"
+GameSimulation --> NetworkServer : "Replicates world state via"
+GameSimulation --> EconomyValidator : "Syncs currency state via"
+
+AIController --> GameSimulation : "Updates enemy state via"
+WaveManager --> GameSimulation : "Triggers spawns and checks POIs via"
+EconomyValidator --> GameSimulation : "Applies validated transactions via"
+BuildingValidator --> GameSimulation : "Applies structural changes via"
+CombatValidator --> GameSimulation : "Applies validated combat via"
+MatchManager --> GameSimulation : "Resets state and calculates rewards via"
+
+note bottom of GameSimulation
+  **ERD Entities Referenced (Persistent Context):**
+  * **players**: linked via player_id for session state
+  * **matches**: source for waves_survived and outcome
+  * **player_match_stats**: source for zombies_killed, damage_dealt, buildings_built, etc.
+  * **servers**: associated with the simulation instance
+end note
+
+@enduml

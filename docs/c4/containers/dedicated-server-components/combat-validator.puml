@@ -1,0 +1,83 @@
+@startuml
+title Combat Validator Component (Dedicated Server)
+
+skinparam classAttributeIconSize 0
+
+class CombatValidator <<DedicatedServer>> {
+    + verifyHit(targetId: int, weaponId: int): CombatValidationResult
+    + processFireInput(weaponId: int, viewDir: Vector3, timestamp: float): CombatValidationResult
+    + processEnemyDamage(playerId: int, enemyId: int, damageType: String): void
+    + validateRevive(reviverId: int, targetId: int): bool
+    + validateHeal(playerId: int, itemId: int): bool
+    + validateReload(playerId: int, weaponId: int): bool
+    + validateAttack(enemyId: int, targetId: int, attackType: String): bool
+    - calculateDamage(weapon_id: int, enemy_type: String, hit_zone: HitZone, distance: float): int
+    - checkLineOfSight(source: Vector3, target: Vector3): bool
+}
+
+class EconomyValidator <<DedicatedServer>> {
+    + awardScrapForKill(playerId: int, enemyType: String): void
+    + checkItemAvailability(playerId: int, itemId: int): bool
+}
+
+class GameSimulation <<DedicatedServer>> {
+    + applyDamage(entityId: int, amount: int): DamageResult
+    + updateHealth(entityId: int, amount: int): void
+    + setDownedState(playerId: int, isDowned: bool): void
+    + revivePlayer(playerId: int): void
+    + deductAmmo(playerId: int, weaponId: int, amount: int): void
+    + transferAmmoToWeapon(playerId: int, weaponId: int): void
+    + getEntityPosition(entityId: int): Vector3
+    + getEntityType(entityId: int): String
+}
+
+class WaveManager <<DedicatedServer>> {
+    + onEnemyKilled(enemyId: int, enemyType: String): void
+    + onSpecialEnemyDefeated(enemyId: int, playerId: int): void
+}
+
+class NetworkServer <<DedicatedServer>> {
+    + broadcastDamageResult(result: CombatValidationResult): void
+    + broadcastPlayerDowned(playerId: int): void
+    + broadcastPlayerRevived(playerId: int): void
+}
+
+enum CombatValidationResult {
+    HIT_CONFIRMED
+    MISS
+    KILL_CONFIRMED
+    INVALID_TARGET
+    OUT_OF_AMMO
+    COOLDOWN_ACTIVE
+}
+
+enum HitZone {
+    HEAD
+    TORSO
+    LIMB
+}
+
+' Interactions
+CombatValidator --> EconomyValidator : "Awards scrap and checks items"
+CombatValidator --> GameSimulation : "Reads/Updates health, ammo, and state"
+CombatValidator --> WaveManager : "Notifies of kills and special defeats"
+CombatValidator --> NetworkServer : "Sends results for replication"
+
+note bottom of CombatValidator
+  **Interactions from Sequence Diagrams:**
+  - verifyHit & processFireInput: hit detection and damage (US001, US004, US009)
+  - processEnemyDamage: handles damage to players (US003, US004)
+  - validateRevive: checks range and timing for revives (US003)
+  - validateHeal: checks cooldowns and item availability (US004)
+  - validateAttack: validates enemy attacks (US007)
+  - Awards scrap via EconomyValidator (US001, US002, US004)
+end note
+
+note top of CombatValidator
+  **ERD Entities Referenced:**
+  - player_match_stats: updates damage_dealt, damage_taken, zombies_killed, deaths, revives, healing_given
+  - players: identifies participants in combat
+  - matches: context for combat actions
+end note
+
+@enduml

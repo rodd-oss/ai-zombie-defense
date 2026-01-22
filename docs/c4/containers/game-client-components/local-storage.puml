@@ -1,0 +1,117 @@
+@startuml Local Storage Component Diagram
+title C4 Code-level Diagram: Local Storage Component for Game Client
+
+' Entities from ERD are mapped to data classes/entities here
+' Referencing docs/c4/containers/database-erd.puml
+
+package "Game Client Components" {
+    class LocalStorage <<Component>> {
+        - const SETTINGS_FILE: String = "user://settings.cfg"
+        - const CACHE_FILE: String = "user://progression_cache.dat"
+        - const SESSION_FILE: String = "user://session.json"
+
+        -- Settings Management --
+        + load_settings(): PlayerSettings
+        + save_settings(settings: PlayerSettings): void
+        
+        -- Cache Management --
+        + cache_progression(progression: PlayerProgression): void
+        + get_cached_progression(): PlayerProgression
+        + cache_economy(economy: PlayerEconomyBalances): void
+        + get_cached_economy(): PlayerEconomyBalances
+        + clear_cache(): void
+
+        -- Session Persistence --
+        + save_session(session: SessionData): void
+        + load_session(): SessionData
+        + clear_session(): void
+
+        -- Internal Helpers --
+        - _write_to_disk(path: String, data: Variant): bool
+        - _read_from_disk(path: String): Variant
+    }
+
+    class SettingsComponent <<Component>> {
+        - current_settings: PlayerSettings
+        + load_user_preferences(): void
+        + save_user_preferences(): void
+        + apply_settings_to_engine(): void
+    }
+
+    class ProgressionManager <<Component>> {
+        - cached_progression: PlayerProgression
+        + sync_with_backend(data: PlayerProgression): void
+        + get_progression(): PlayerProgression
+    }
+
+    class EconomyManager <<Component>> {
+        - cached_balances: PlayerEconomyBalances
+        + sync_balances(data: PlayerEconomyBalances): void
+        + get_balances(): PlayerEconomyBalances
+    }
+
+    ' Entities referenced from ERD
+    class PlayerSettings <<Entity>> {
+        + player_id: Integer
+        + key_bindings: String <<JSON>>
+        + mouse_sensitivity: Decimal(3,2)
+        + ui_scale: Decimal(3,2)
+        + color_blind_mode: Boolean
+        + subtitles_enabled: Boolean
+        + created_at: Timestamp
+        + updated_at: Timestamp
+    }
+
+    class PlayerProgression <<Entity>> {
+        + player_id: Integer
+        + level: Integer
+        + experience: Integer
+        + prestige_level: Integer
+        + total_matches_played: Integer
+        + total_waves_survived: Integer
+        + total_kills: Integer
+        + total_deaths: Integer
+        + total_scrap_earned: Integer
+        + total_data_earned: Integer
+        + updated_at: Timestamp
+    }
+
+    class PlayerEconomyBalances <<Data>> {
+        + data_currency: Integer
+        + last_synced_at: Timestamp
+    }
+
+    class SessionData <<Data>> {
+        + token: String
+        + expires_at: Timestamp
+        + player_id: Integer
+        + username: String
+    }
+}
+
+' Relationships and method calls
+' 1. Settings Component uses Local Storage for user preferences
+SettingsComponent --> LocalStorage : "1. load_settings()"
+note on link: returns PlayerSettings
+SettingsComponent --> LocalStorage : "2. save_settings(PlayerSettings)"
+note on link: returns void
+
+' 2. Progression Manager uses Local Storage to cache data for offline/startup
+ProgressionManager --> LocalStorage : "3. cache_progression(PlayerProgression)"
+note on link: returns void
+ProgressionManager --> LocalStorage : "4. get_cached_progression()"
+note on link: returns PlayerProgression
+
+' 3. Economy Manager uses Local Storage to cache currency balances
+EconomyManager --> LocalStorage : "5. cache_economy(PlayerEconomyBalances)"
+note on link: returns void
+EconomyManager --> LocalStorage : "6. get_cached_economy()"
+note on link: returns PlayerEconomyBalances
+
+' Data structures handled by LocalStorage
+LocalStorage ..> PlayerSettings : "serializes/deserializes"
+LocalStorage ..> PlayerProgression : "persists cache"
+LocalStorage ..> PlayerEconomyBalances : "persists cache"
+LocalStorage ..> SessionData : "stores authentication"
+
+@enduml

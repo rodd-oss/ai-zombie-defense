@@ -1,0 +1,103 @@
+@startuml
+title Character Customization Component - Class Diagram (C4 Code-level)
+
+package "Game Client" {
+    class CharacterCustomization <<GDScript>> {
+        -- UI Methods --
+        + openCustomizationScreen(): void
+        + displayUnlockedCosmetics(cosmetics: List<CosmeticItem>): void
+        + previewCosmetic(cosmeticId: int): void
+        + equipCosmetic(cosmeticId: int, slot: CosmeticSlot): void
+        -- Data Handling --
+        - onEquipConfirmed(success: bool): void
+        - onCosmeticsLoaded(cosmetics: List<CosmeticItem>): void
+        -- Rendering --
+        - updateCharacterModel(): void
+        - renderPreview(cosmeticId: int): void
+    }
+
+    class ProgressionManager <<GDScript>> {
+        - cachedUnlockedCosmetics: List<CosmeticItem>
+        - currentLoadout: Loadout
+        + loadUnlockedCosmetics(): List<CosmeticItem>
+        + getEquippedInSlot(slot: CosmeticSlot): CosmeticItem
+        + refreshProgression(): void
+    }
+
+    class BackendAPIClient <<GDScript>> {
+        + fetchUnlockedCosmetics(): Promise<List<CosmeticItem>>
+        + updateEquippedLoadout(cosmeticId: int, slot: CosmeticSlot): Promise<bool>
+    }
+
+    class CosmeticItem <<Entity>> {
+        + cosmetic_id: int
+        + name: String
+        + description: String
+        + slot: CosmeticSlot
+        + rarity: CosmeticRarity
+        + category: String
+        + unlock_level: int
+        + data_cost: int
+        + is_prestige_only: bool
+    }
+
+    class Loadout <<Entity>> {
+        + loadout_id: int
+        + player_id: int
+        + name: String
+        + is_active: bool
+        + cosmetics: Map<CosmeticSlot, CosmeticItem>
+    }
+
+    enum CosmeticSlot {
+        CHARACTER_SKIN
+        WEAPON_SKIN
+        EMOTE
+        TAUNT
+        BADGE
+        TITLE
+        PARTICLE_EFFECT
+        OTHER
+    }
+
+    enum CosmeticRarity {
+        COMMON
+        UNCOMMON
+        RARE
+        EPIC
+        LEGENDARY
+    }
+}
+
+' Relationships
+CharacterCustomization ..> CosmeticItem : "previews & displays"
+CharacterCustomization ..> Loadout : "modifies"
+CharacterCustomization --> ProgressionManager : "fetches state"
+CharacterCustomization --> BackendAPIClient : "persists changes"
+
+ProgressionManager --> BackendAPIClient : "syncs unlocks"
+ProgressionManager "1" *-- "many" CosmeticItem : "caches"
+ProgressionManager "1" *-- "1" Loadout : "manages"
+
+Loadout "1" o-- "many" CosmeticItem : "references via loadout_cosmetics"
+
+CosmeticItem ..> CosmeticSlot : "belongs to"
+CosmeticItem ..> CosmeticRarity : "has"
+
+' Notes
+note right of CharacterCustomization
+  US008: Character Cosmetic Customization
+  US009: Persistence and update appearance
+end note
+
+note bottom of CosmeticItem
+  Maps to 'cosmetic_items' and 
+  'player_cosmetics' in ERD
+end note
+
+note bottom of Loadout
+  Maps to 'loadouts' and 
+  'loadout_cosmetics' in ERD
+end note
+
+@enduml

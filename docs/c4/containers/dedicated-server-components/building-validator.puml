@@ -1,0 +1,64 @@
+@startuml
+title Building Validator Component (Dedicated Server)
+
+skinparam classAttributeIconSize 0
+
+class BuildingValidator <<DedicatedServer>> {
+    + validatePlacement(typeId: int, position: Vector3, rotation: Quaternion): ValidationResult
+    + validateRepair(buildingId: Guid): ValidationResult
+    + validateUpgrade(buildingId: Guid, upgradeType: int): ValidationResult
+    - checkTerrainRestrictions(position: Vector3): bool
+    - checkPoiRestrictions(position: Vector3): bool
+    - isPreparationPhase(): bool
+}
+
+class EconomyValidator <<DedicatedServer>> {
+    + lookupBuildingCost(typeId: int): int
+    + lookupRepairCost(buildingId: Guid): int
+    + lookupUpgradeCost(buildingId: Guid, upgradeType: int): int
+    + checkScrapBalance(playerId: int, amount: int): bool
+    + deductScrap(playerId: int, amount: int): void
+}
+
+class GameSimulation <<DedicatedServer>> {
+    + spawnBuilding(typeId: int, position: Vector3, rotation: Quaternion, health: int): Guid
+    + updateBuildingHealth(buildingId: Guid, healthDelta: int): void
+    + applyUpgrade(buildingId: Guid, upgradeType: int): void
+    + destroyBuilding(buildingId: Guid): void
+    + clearAllBuildings(): void
+}
+
+class MatchManager <<DedicatedServer>> {
+    + cleanupMatch(): void
+}
+
+enum ValidationResult {
+    SUCCESS
+    INVALID_PLACEMENT
+    INSUFFICIENT_SCRAP
+    INVALID_PHASE
+    NOT_REPAIRABLE
+    ALREADY_MAX_UPGRADE
+}
+
+' Interactions
+BuildingValidator --> EconomyValidator : "Checks costs and balances"
+BuildingValidator --> GameSimulation : "Triggers building lifecycle events"
+MatchManager --> GameSimulation : "Orchestrates cleanup"
+
+note bottom of BuildingValidator
+  **Interactions from Sequence Diagrams:**
+  - validatePlacement: terrain & POI check (US006)
+  - validateRepair: check if repairable (US006)
+  - validateUpgrade: check if upgrade allowed (US006)
+  - Spawns buildings via GameSimulation (US001, US003, US009)
+  - References player_match_stats for buildings_built/destroyed
+end note
+
+note top of BuildingValidator
+  **ERD Entities Referenced (indirectly):**
+  - player_match_stats: tracks builds/destructions
+  - matches: buildings exist within match context
+end note
+
+@enduml

@@ -1,0 +1,190 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram for SQLC Generated Code
+
+' This diagram represents the code-level structure of the 'sqlc_generated' component
+' which provides type-safe database access for the Backend API services.
+
+package "sqlc_generated" {
+    interface DBTX {
+        + ExecContext(ctx: Context, query: string, args: ...interface{}): (Result, error)
+        + PrepareContext(ctx: Context, query: string): (Stmt, error)
+        + QueryContext(ctx: Context, query: string, args: ...interface{}): (Rows, error)
+        + QueryRowContext(ctx: Context, query: string, args: ...interface{}): *Row
+    }
+
+    class Queries {
+        - db: DBTX
+        + WithTx(tx: *sql.Tx): *Queries
+        .. Player Management ..
+        + CreatePlayer(ctx: Context, arg: CreatePlayerParams): (Player, error)
+        + GetPlayerByID(ctx: Context, player_id: int32): (Player, error)
+        + GetPlayerByUsername(ctx: Context, username: string): (Player, error)
+        + UpdatePlayer(ctx: Context, arg: UpdatePlayerParams): error
+        .. Session Management ..
+        + CreateSession(ctx: Context, arg: CreateSessionParams): (Session, error)
+        + GetSessionByToken(ctx: Context, token: string): (Session, error)
+        + DeleteSession(ctx: Context, session_id: int32): error
+        .. Progression & Settings ..
+        + GetPlayerProgression(ctx: Context, player_id: int32): (PlayerProgression, error)
+        + UpdatePlayerProgression(ctx: Context, arg: UpdatePlayerProgressionParams): error
+        + GetPlayerSettings(ctx: Context, player_id: int32): (PlayerSetting, error)
+        + UpdatePlayerSettings(ctx: Context, arg: UpdatePlayerSettingsParams): error
+        .. Cosmetics & Loadouts ..
+        + ListCosmeticItems(ctx: Context): ([]CosmeticItem, error)
+        + GetCosmeticItem(ctx: Context, cosmetic_id: int32): (CosmeticItem, error)
+        + ListPlayerCosmetics(ctx: Context, player_id: int32): ([]CosmeticItem, error)
+        + CreatePlayerCosmetic(ctx: Context, arg: CreatePlayerCosmeticParams): error
+        + ListPlayerLoadouts(ctx: Context, player_id: int32): ([]Loadout, error)
+        + CreateLoadout(ctx: Context, arg: CreateLoadoutParams): (Loadout, error)
+        + UpdateLoadout(ctx: Context, arg: UpdateLoadoutParams): error
+        + SetLoadoutCosmetic(ctx: Context, arg: SetLoadoutCosmeticParams): error
+        .. Servers & Matches ..
+        + ListActiveServers(ctx: Context): ([]Server, error)
+        + CreateServer(ctx: Context, arg: CreateServerParams): (Server, error)
+        + UpdateServerHeartbeat(ctx: Context, arg: UpdateServerHeartbeatParams): error
+        + CreateMatch(ctx: Context, arg: CreateMatchParams): (Match, error)
+        + UpdateMatchEnd(ctx: Context, arg: UpdateMatchEndParams): error
+        + CreatePlayerMatchStats(ctx: Context, arg: CreatePlayerMatchStatsParams): error
+        .. Social & Leaderboards ..
+        + ListFriends(ctx: Context, player_id: int32): ([]Player, error)
+        + CreateFriendRequest(ctx: Context, arg: CreateFriendRequestParams): error
+        + UpdateFriendStatus(ctx: Context, arg: UpdateFriendStatusParams): error
+        + GetLeaderboard(ctx: Context, arg: GetLeaderboardParams): ([]GetLeaderboardRow, error)
+        .. Loot System ..
+        + ListLootTables(ctx: Context): ([]LootTable, error)
+        + GetLootTableWithEntries(ctx: Context, loot_table_id: int32): ([]GetLootTableWithEntriesRow, error)
+    }
+
+    package "Models" {
+        class Player <<struct>> {
+            + PlayerID: int32
+            + Username: string
+            + Email: string
+            + PasswordHash: string
+            + CreatedAt: time.Time
+            + LastLoginAt: time.Time
+            + IsBanned: bool
+            + BannedReason: string
+            + BannedUntil: time.Time
+        }
+
+        class Session <<struct>> {
+            + SessionID: int32
+            + PlayerID: int32
+            + Token: string
+            + ExpiresAt: time.Time
+            + CreatedAt: time.Time
+            + IpAddress: string
+            + UserAgent: string
+        }
+
+        class PlayerProgression <<struct>> {
+            + PlayerID: int32
+            + Level: int32
+            + Experience: int32
+            + PrestigeLevel: int32
+            + DataCurrency: int32
+            + TotalMatchesPlayed: int32
+            + TotalWavesSurvived: int32
+            + TotalKills: int32
+            + TotalDeaths: int32
+            + TotalScrapEarned: int32
+            + TotalDataEarned: int32
+            + UpdatedAt: time.Time
+        }
+
+        class PlayerSetting <<struct>> {
+            + PlayerID: int32
+            + KeyBindings: string
+            + MouseSensitivity: float64
+            + UIScale: float64
+            + ColorBlindMode: bool
+            + SubtitlesEnabled: bool
+            + CreatedAt: time.Time
+            + UpdatedAt: time.Time
+        }
+
+        class Loadout <<struct>> {
+            + LoadoutID: int32
+            + PlayerID: int32
+            + Name: string
+            + IsActive: bool
+            + CreatedAt: time.Time
+            + UpdatedAt: time.Time
+        }
+
+        class CosmeticItem <<struct>> {
+            + CosmeticID: int32
+            + Name: string
+            + Description: string
+            + Slot: string
+            + Category: string
+            + Rarity: string
+            + UnlockLevel: int32
+            + DataCost: int32
+            + IsPrestigeOnly: bool
+            + CreatedAt: time.Time
+        }
+
+        class Server <<struct>> {
+            + ServerID: int32
+            + IpAddress: string
+            + Port: int32
+            + Name: string
+            + MapRotation: string
+            + MaxPlayers: int32
+            + CurrentPlayers: int32
+            + IsOnline: bool
+            + LastHeartbeat: time.Time
+            + Region: string
+            + Version: string
+            + CreatedAt: time.Time
+        }
+
+        class Match <<struct>> {
+            + MatchID: int32
+            + ServerID: int32
+            + MapName: string
+            + GameMode: string
+            + StartTime: time.Time
+            + EndTime: time.Time
+            + Outcome: string
+            + WavesSurvived: int32
+            + TotalZombiesKilled: int32
+            + TotalPlayers: int32
+        }
+
+        class PlayerMatchStat <<struct>> {
+            + PlayerID: int32
+            + MatchID: int32
+            + WavesSurvived: int32
+            + ZombiesKilled: int32
+            + Deaths: int32
+            + ScrapEarned: int32
+            + DataEarned: int32
+            + DamageDealt: int32
+            + DamageTaken: int32
+            + BuildingsBuilt: int32
+            + BuildingsDestroyed: int32
+            + HealingGiven: int32
+            + Revives: int32
+            + Score: int32
+        }
+
+        class LootTable <<struct>> {
+            + LootTableID: int32
+            + Name: string
+            + Description: string
+            + DropChance: float64
+            + IsActive: bool
+            + CreatedAt: time.Time
+        }
+    }
+}
+
+Queries --> DBTX : uses
+Queries ..> Models : returns/uses
+
+@enduml

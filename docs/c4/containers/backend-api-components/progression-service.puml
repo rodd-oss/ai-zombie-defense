@@ -1,0 +1,93 @@
+@startuml
+title Progression Service Component - Class Diagram
+
+package "Backend API" {
+    class ProgressionService <<Component>> {
+        + GetPlayerProgression(playerID: Integer): ProgressionData
+        + GetUnlockedCosmetics(playerID: Integer): List<CosmeticItem>
+        + SetEquippedCosmetic(playerID: Integer, cosmeticID: Integer): Boolean
+        + ValidateAndProcessPurchase(playerID: Integer, cosmeticID: Integer): PurchaseResponse
+        + NotifyMatchCompletion(playerID: Integer, results: MatchResults, rewards: Rewards): UpdatedProgression
+        + GrantCosmeticItem(playerID: Integer, cosmeticID: Integer): Boolean
+        - calculateLevelUp(currentXP: Integer, gainedXP: Integer): LevelUpdate
+        - processPrestige(playerID: Integer): Boolean
+    }
+
+    class MatchHistoryService <<Component>> {
+        + NotifyMatchCompletion(playerID: Integer, results: MatchResults, rewards: Rewards): void
+    }
+
+    class LootService <<Component>> {
+        + GrantCosmeticItem(playerID: Integer, cosmeticID: Integer): Boolean
+    }
+
+    class APIGateway <<Component>> {
+        + RouteToProgressionService(request: Request): Response
+    }
+
+    class SQLCGenerated <<Component>> {
+        + GetPlayerProgression(playerID: Integer): PlayerProgressionEntity
+        + UpdatePlayerProgression(entity: PlayerProgressionEntity): void
+        + GetPlayerCosmetics(playerID: Integer): List<PlayerCosmeticEntity>
+        + AddPlayerCosmetic(playerID: Integer, cosmeticID: Integer): void
+        + GetCosmeticItem(cosmeticID: Integer): CosmeticItemEntity
+        + UpdatePlayerLoadout(playerID: Integer, cosmeticID: Integer): void
+    }
+}
+
+package "Data Models" {
+    class ProgressionData {
+        + playerID: Integer
+        + level: Integer
+        + experience: Integer
+        + prestige_level: Integer
+        + data_currency: Integer
+        + lifetime_stats: LifetimeStats
+    }
+
+    class CosmeticItem {
+        + cosmeticID: Integer
+        + name: String
+        + slot: String
+        + rarity: String
+    }
+
+    class PurchaseResponse {
+        + success: Boolean
+        + message: String
+        + updatedBalance: Integer
+    }
+}
+
+package "Database (ERD References)" {
+    entity "players" as players_table
+    entity "player_progression" as progression_table
+    entity "player_cosmetics" as cosmetics_table
+    entity "cosmetic_items" as items_table
+    entity "loadouts" as loadouts_table
+}
+
+' Relationships
+ProgressionService --> SQLCGenerated : "Uses for DB access"
+ProgressionService ..> ProgressionData : "Returns"
+ProgressionService ..> CosmeticItem : "Manages"
+ProgressionService ..> PurchaseResponse : "Returns"
+
+MatchHistoryService --> ProgressionService : "Triggers updates"
+LootService --> ProgressionService : "Requests grants"
+APIGateway --> ProgressionService : "Routes requests"
+
+SQLCGenerated --> progression_table : "CRUD"
+SQLCGenerated --> cosmetics_table : "CRUD"
+SQLCGenerated --> items_table : "Read"
+SQLCGenerated --> loadouts_table : "Update"
+
+note bottom of ProgressionService
+  **Roles:**
+  - Manages persistent player growth (Level, XP, Prestige).
+  - Handles 'Data' currency transactions for cosmetics.
+  - Manages cosmetic inventory and active loadouts.
+  - Integrates match results into lifetime statistics.
+end note
+
+@enduml

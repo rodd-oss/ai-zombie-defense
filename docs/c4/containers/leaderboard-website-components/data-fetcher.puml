@@ -1,0 +1,53 @@
+@startuml
+title Leaderboard Website - Data Fetcher Component (Class Diagram)
+
+package "Data Fetcher Component" {
+    class LeaderboardApiClient <<Component>> {
+        - baseUrl: String
+        - httpClient: AxiosInstance | Fetch
+        + getLeaderboard(period: LeaderboardPeriod): Promise<LeaderboardEntry[]>
+        + getPlayerRanking(playerID: Number, period: LeaderboardPeriod): Promise<LeaderboardEntry>
+        - handleError(error: Error): void
+    }
+}
+
+package "Data Models" {
+    class LeaderboardEntry <<Entity>> {
+        + rank: Number
+        + playerID: Number
+        + username: String
+        + score: Number
+        + matchesPlayed: Number
+        + avgKills: Number
+        + avgWaves: Number
+    }
+
+    enum LeaderboardPeriod {
+        DAILY
+        WEEKLY
+        MONTHLY
+        ALL_TIME
+    }
+}
+
+package "External Systems" {
+    class "Backend API" as BackendAPI <<Container>> {
+        + GET /leaderboards
+        + GET /leaderboards/player/{playerID}
+    }
+}
+
+' Relationships
+LeaderboardApiClient ..> LeaderboardEntry : "Fetches"
+LeaderboardApiClient ..> LeaderboardPeriod : "Uses"
+LeaderboardApiClient --> BackendAPI : "Makes HTTP requests to"
+
+note bottom of LeaderboardApiClient
+  **Roles:**
+  - Encapsulates HTTP communication with the Backend API.
+  - Handles serialization/deserialization of leaderboard data.
+  - Provides a clean interface for the UI Framework and Cache Manager.
+  - Implemented using axios or fetch.
+end note
+
+@enduml

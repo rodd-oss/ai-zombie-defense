@@ -1,0 +1,121 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title C4 Code-level Diagram: Gameplay Controller Component
+
+package "Game Client" {
+    class GameplayController <<Component>> {
+        - currentState: MatchPhase
+        - currentWave: int
+        - activePOITarget: string
+        + transitionToMapLoading(): void
+        + startPreparationPhase(): void
+        + endPreparationPhase(): void
+        + onOpenShop(type: ShopType): void
+        + purchaseWeapon(weaponID: string): void
+        + purchaseBuilding(buildingID: string, pos: Vector3, rot: Quaternion): void
+        + repairBuilding(buildingID: string): void
+        + upgradeBuilding(buildingID: string, upgradeType: string): void
+        + purchaseUpgrade(skillID: string): void
+        + purchaseAmmo(ammoTypeID: string): void
+        + onWaveStart(waveNum: int, poiTarget: string): void
+        + onWaveUpdate(state: WaveState): void
+        + onPOILost(poiID: string): void
+        + onMapEnd(success: boolean, rewards: MatchRewards): void
+        + disconnectFromServer(): void
+        + stayOnServer(): void
+    }
+
+    class EconomyManager <<Component>> {
+        - scrapBalance: int
+        - dataBalance: int
+        + getScrapBalance(): int
+        + getDataBalance(): int
+        + updateLocalScrap(delta: int): void
+        + updateLocalData(delta: int): void
+    }
+
+    class ProgressionManager <<Component>> {
+        - skillPoints: int
+        - xp: int
+        - unlockedCosmetics: List<string>
+        + getSkillPoints(): int
+        + updateLocalSkillPoints(delta: int): void
+        + updateProgression(rewards: MatchRewards): void
+        + applyUpgradeLocally(upgradeID: string): void
+    }
+
+    class CombatSystem <<Component>> {
+        + addWeaponToLoadout(weaponID: string): void
+        + updateEnemyVisuals(enemyData: EnemyData): void
+        + showHitMarkers(result: DamageResult): void
+        + updateHUD(health: float, ammo: int): void
+    }
+
+    class BuildingSystem <<Component>> {
+        + startPlacementPreview(typeID: string): void
+        + placeBuildingInWorld(buildingID: string, pos: Vector3, rot: Quaternion): void
+        + updateBuildingVisuals(buildingID: string, health: float): void
+        + clearAllBuildings(): void
+    }
+
+    class NetworkClient <<Component>> {
+        + sendPurchaseRequest(itemType: ItemType, itemID: string): void
+        + sendBuildingRequest(buildingID: string, pos: Vector3, rot: Quaternion): void
+        + sendUpgradeRequest(skillID: string): void
+        + sendMatchDecision(stay: boolean): void
+        + disconnect(): void
+    }
+
+    enum MatchPhase {
+        LOADING
+        PREPARATION
+        WAVE_ACTIVE
+        MATCH_END
+    }
+
+    enum ShopType {
+        WEAPON
+        BUILDING
+        SKILL
+    }
+
+    struct WaveState {
+        + waveNumber: int
+        + timeRemaining: float
+        + poiHealth: Map<string, float>
+    }
+
+    struct MatchRewards {
+        + scrapEarned: int
+        + dataEarned: int
+        + xpGained: int
+        + unlockedCosmetics: List<string>
+    }
+}
+
+' Relationships
+GameplayController ..> MatchPhase : uses
+GameplayController ..> ShopType : uses
+GameplayController ..> WaveState : uses
+GameplayController ..> MatchRewards : uses
+
+GameplayController --> NetworkClient : sends requests
+GameplayController --> EconomyManager : queries scrap
+GameplayController --> ProgressionManager : queries skill points
+GameplayController --> CombatSystem : updates state
+GameplayController --> BuildingSystem : manages placement
+
+NetworkClient --> GameplayController : notifies of server events
+EconomyManager <-[hidden]- ProgressionManager
+
+note bottom of GameplayController
+  <b>Referenced ERD Entities:</b>
+  - <b>players</b> (via player_id)
+  - <b>matches</b> (via match_id)
+  - <b>cosmetic_items</b> (via cosmetic_id)
+  - <b>player_progression</b> (XP, data_currency)
+  - <b>player_match_stats</b> (match results)
+end note
+
+@enduml

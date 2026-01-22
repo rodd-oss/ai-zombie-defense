@@ -1,0 +1,133 @@
+@startuml Match Manager Class Diagram
+title Match Manager Component Class Diagram
+
+' Based on sequence diagrams US001, US002, US003, US006, US009 and database ERD
+' Orchestrates match lifecycle, phases, and transitions within the Dedicated Server.
+
+' === Method Calls Summary ===
+' To Match Manager:
+' - validate_connection(connection_info: ConnectionInfo)
+' - on_player_joined(player_id: string)
+' - on_player_left(player_id: string)
+' - on_player_stay(player_id: string)
+' - on_preparation_phase_ended()
+' - on_wave_completed(wave_number: int)
+' - on_poi_destroyed(poi_id: string)
+' - on_match_end_condition_met(reason: string)
+'
+' From Match Manager:
+' - send_match_state(client_id: string, phase: MatchPhase)
+' - broadcast_wave_start(wave_number: int, poi_target: string)
+' - broadcast_poi_destroyed(poi_id: string)
+' - broadcast_wave_completion(wave_number: int)
+' - end_match(outcome: MatchOutcome)
+' - submit_match_results(results: MatchResults)
+' - reset_match_state()
+' - transition_to_next_map()
+
+' === Entities Referenced ===
+' - matches: Tracks match lifecycle, start/end times, and outcomes
+' - player_match_stats: Stores performance data for each player per match
+' - servers: Associated with the dedicated server instance running the match
+' - players: Manages participants in the match
+
+' === Classes ===
+
+class MatchManager <<Component>> {
+  - current_phase: MatchPhase
+  - match_id: UUID
+  - players: List<PlayerID>
+  - map_rotation: List<String>
+  - current_map_index: int
+  - preparation_duration: float = 60.0
+  - decision_timer: float = 15.0
+
+  ' Player Management
+  + validate_connection(connection_info: Dictionary) : bool
+  + on_player_joined(player_id: string)
+  + on_player_left(player_id: string)
+  + on_player_stay(player_id: string)
+
+  ' Match Lifecycle
+  + start_match()
+  + start_preparation_phase()
+  + on_preparation_phase_ended()
+  + start_wave(wave_number: int, poi_target: string)
+  + on_wave_completed(wave_number: int)
+  + on_poi_destroyed(poi_id: string)
+  + on_match_end_condition_met(reason: string)
+  + end_match(outcome: MatchOutcome)
+
+  ' Internal Logic
+  - calculate_rewards() : MatchRewards
+  - submit_results(results: MatchResults)
+  - reset_match_state()
+  - transition_to_next_map()
+}
+
+enum MatchPhase {
+  LOBBY
+  PREPARATION
+  WAVE
+  END_OF_MAP
+  CLEANUP
+}
+
+enum MatchOutcome {
+  COMPLETED
+  FAILED
+  ABANDONED
+}
+
+class MatchResults {
+  + match_id: UUID
+  + outcome: MatchOutcome
+  + waves_survived: int
+  + total_kills: int
+  + player_stats: List<PlayerMatchStats>
+}
+
+class PlayerMatchStats {
+  + player_id: string
+  + waves_survived: int
+  + zombies_killed: int
+  + deaths: int
+  + scrap_earned: int
+  + data_earned: int
+  + revives: int
+  + score: int
+}
+
+' === Relationships ===
+
+MatchManager --> MatchPhase : manages
+MatchManager --> MatchOutcome : determines
+MatchManager --> MatchResults : creates
+MatchResults "1" *-- "many" PlayerMatchStats : contains
+
+' Dedicated Server Internal Components
+class WaveManager <<Component>>
+class GameSimulation <<Component>>
+class NetworkServer <<Component>>
+class ServerBackendAPIClient <<Component>>
+
+WaveManager ..> MatchManager : "Signals phase transitions/completion"
+MatchManager ..> GameSimulation : "Controls entity state, resets, & cleanup"
+MatchManager ..> NetworkServer : "Broadcasts state & validates connections"
+MatchManager ..> ServerBackendAPIClient : "Reports match results & rewards"
+
+' === Styling ===
+skinparam classBackgroundColor #F5F5F5
+skinparam classBorderColor #333333
+skinparam classArrowColor #333333
+skinparam noteBackgroundColor #FFF3E0
+skinparam noteBorderColor #FFA726
+
+note top of MatchManager
+  **Match Manager (GDScript)**
+  - Orchestrates match lifecycle and transitions
+  - Authoritative over match state and phases
+  - Coordinates between networking, simulation, and backend
+end note
+
+@enduml

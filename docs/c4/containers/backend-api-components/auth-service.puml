@@ -1,0 +1,103 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Class Diagram for Authentication Service (Backend API)
+
+' Roles and Classes
+package "Internal Components" {
+    class AuthHandler <<Component>> {
+        +Login(ctx: Context, req: LoginRequest) : LoginResponse
+        +Register(ctx: Context, req: RegisterRequest) : error
+        +Logout(ctx: Context, token: string) : error
+        +RefreshToken(ctx: Context, token: string) : TokenResponse
+    }
+
+    interface IAuthService {
+        +Authenticate(username: string, password: string) : (Session, Player, error)
+        +RegisterUser(username: string, email: string, password: string) : error
+        +ValidateSession(token: string) : (PlayerID, error)
+        +RefreshSession(token: string) : (Session, error)
+        +TerminateSession(token: string) : error
+    }
+
+    class AuthService <<Component>> {
+        -queries: SQLCQuerier
+        -tokenService: TokenService
+        -accountService: IAccountService
+        +Authenticate(username: string, password: string) : (Session, Player, error)
+        +RegisterUser(username: string, email: string, password: string) : error
+        +ValidateSession(token: string) : (PlayerID, error)
+        +RefreshSession(token: string) : (Session, error)
+        +TerminateSession(token: string) : error
+    }
+
+    interface IAccountService {
+        +GetPlayerProfile(playerID: int) : (Player, error)
+        +IsUserActive(playerID: int) : bool
+    }
+
+    class TokenService <<Component>> {
+        -secretKey: string
+        +GenerateJWT(playerID: int) : (string, error)
+        +ParseJWT(token: string) : (int, error)
+    }
+
+    class SQLCQuerier <<Component>> {
+        +GetUserByUsername(username: string) : (Player, error)
+        +CreateUser(params: CreateUserParams) : error
+        +CreateSession(params: CreateSessionParams) : (Session, error)
+        +GetSessionByToken(token: string) : (Session, error)
+        +DeleteSession(token: string) : error
+        +UpdateLastLogin(playerID: int) : error
+    }
+}
+
+' ERD Entities
+package "Entities (Models)" {
+    class Player {
+        +ID: int
+        +Username: string
+        +Email: string
+        +PasswordHash: string
+        +CreatedAt: timestamp
+        +LastLoginAt: timestamp
+        +IsBanned: bool
+    }
+
+    class Session {
+        +ID: int
+        +PlayerID: int
+        +Token: string
+        +ExpiresAt: timestamp
+        +CreatedAt: timestamp
+        +IPAddress: string
+        +UserAgent: string
+    }
+}
+
+' Relationships
+AuthHandler --> IAuthService : uses
+AuthService ..|> IAuthService : implements
+AuthService --> IAccountService : validates access via
+AuthService --> SQLCQuerier : uses
+AuthService --> TokenService : uses
+AuthService --> Player : manages
+AuthService --> Session : manages
+
+note right of AuthHandler
+  Handles HTTP/REST endpoints
+  routed from API Gateway
+end note
+
+note bottom of AuthService
+  Coordinates authentication logic,
+  password verification, and
+  session lifecycle.
+end note
+
+note right of TokenService
+  Manages JWT creation
+  and verification.
+end note
+
+@enduml

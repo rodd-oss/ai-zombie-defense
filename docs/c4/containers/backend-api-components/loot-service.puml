@@ -1,0 +1,123 @@
+@startuml
+title Code-level Class Diagram for Loot Service
+
+' Roles:
+' - LootController: Handles HTTP requests from Game Client and Dedicated Server (Go/Gin).
+' - LootService: Core business logic for weighted drops, reward calculation, and orchestration.
+' - LootRepository: Data access layer for loot tables, entries, and cosmetics via SQLC.
+' - WeightedRandomPicker: Utility class for selecting items based on weighted probabilities.
+' - IProgressionClient: Interface for calling the Progression Service to grant rewards.
+
+package "Models / Entities" {
+    class LootTable {
+        + ID: int32
+        + Name: string
+        + Description: string
+        + DropChance: float64
+        + IsActive: bool
+        + CreatedAt: time.Time
+    }
+
+    class LootEntry {
+        + ID: int32
+        + TableID: int32
+        + CosmeticID: int32
+        + Weight: int32
+        + MinQuantity: int32
+        + MaxQuantity: int32
+    }
+
+    class CosmeticItem {
+        + ID: int32
+        + Name: string
+        + Description: string
+        + Slot: string
+        + Category: string
+        + Rarity: string
+        + UnlockLevel: int32
+        + DataCost: int32
+        + IsPrestigeOnly: bool
+        + CreatedAt: time.Time
+    }
+
+    class MatchStats {
+        + PlayerID: int32
+        + WavesSurvived: int32
+        + ZombiesKilled: int32
+        + Achievements: []string
+    }
+}
+
+package "Internal / Logic" {
+    interface ILootService {
+        + GetCosmeticCatalog(ctx: context.Context): ([]CosmeticItem, error)
+        + DetermineDrop(ctx: context.Context, lootTableID: int32): (*CosmeticItem, error)
+        + CalculateMatchRewards(ctx: context.Context, playerID: int32, stats: MatchStats): ([]CosmeticItem, error)
+        + ProcessLootDrop(ctx: context.Context, playerID: int32, lootTableID: int32): (*CosmeticItem, error)
+    }
+
+    class LootServiceImplementation {
+        - repo: ILootRepository
+        - progressionClient: IProgressionClient
+        - picker: IWeightedRandomPicker
+        + GetCosmeticCatalog(ctx: context.Context): ([]CosmeticItem, error)
+        + DetermineDrop(ctx: context.Context, lootTableID: int32): (*CosmeticItem, error)
+        + CalculateMatchRewards(ctx: context.Context, playerID: int32, stats: MatchStats): ([]CosmeticItem, error)
+        + ProcessLootDrop(ctx: context.Context, playerID: int32, lootTableID: int32): (*CosmeticItem, error)
+    }
+
+    interface IWeightedRandomPicker {
+        + Pick(entries: []LootEntry): (LootEntry, bool)
+    }
+
+    class WeightedRandomPicker {
+        + Pick(entries: []LootEntry): (LootEntry, bool)
+    }
+}
+
+package "API / Controller" {
+    class LootController {
+        - service: ILootService
+        + GetCatalog(c: *gin.Context)
+        + RequestDrop(c: *gin.Context)
+        + GetTableConfig(c: *gin.Context)
+    }
+}
+
+package "Data / Repository" {
+    interface ILootRepository {
+        + GetActiveLootTables(ctx: context.Context): ([]LootTable, error)
+        + GetEntriesForTable(ctx: context.Context, tableID: int32): ([]LootEntry, error)
+        + GetAllCosmeticItems(ctx: context.Context): ([]CosmeticItem, error)
+        + GetLootTableByID(ctx: context.Context, id: int32): (*LootTable, error)
+    }
+
+    class LootRepository {
+        - db: *sqlc.Queries
+        + GetActiveLootTables(ctx: context.Context): ([]LootTable, error)
+        + GetEntriesForTable(ctx: context.Context, tableID: int32): ([]LootEntry, error)
+        + GetAllCosmeticItems(ctx: context.Context): ([]CosmeticItem, error)
+        + GetLootTableByID(ctx: context.Context, id: int32): (*LootTable, error)
+    }
+}
+
+package "External Clients" {
+    interface IProgressionClient {
+        + GrantCosmetic(ctx: context.Context, playerID: int32, cosmeticID: int32): error
+    }
+}
+
+LootController --> ILootService
+LootServiceImplementation ..|> ILootService
+LootServiceImplementation --> ILootRepository
+LootServiceImplementation --> IProgressionClient
+LootServiceImplementation --> IWeightedRandomPicker
+WeightedRandomPicker ..|> IWeightedRandomPicker
+LootRepository ..|> ILootRepository
+
+LootServiceImplementation ..> LootTable : uses
+LootServiceImplementation ..> LootEntry : uses
+LootServiceImplementation ..> CosmeticItem : uses
+LootServiceImplementation ..> MatchStats : uses
+
+@enduml

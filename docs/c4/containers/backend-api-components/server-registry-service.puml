@@ -1,0 +1,79 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Class Diagram for Server Registry Service
+
+package "Server Registry Service" {
+    class ServerRegistryController <<Controller>> {
+        + GetServers(region: String, gameMode: String): List<Server>
+        + RegisterServer(req: ServerRegistrationRequest): ServerRegistrationResponse
+        + UpdateHeartbeat(serverId: Int, currentPlayers: Int): Response
+        + GetJoinToken(serverId: Int, playerId: Int): JoinTokenResponse
+        + JoinAsParty(serverId: Int, partyId: Int): PartyJoinResponse
+    }
+
+    class ServerRegistryService <<Service>> {
+        - serverRepo: IServerRepository
+        - matchHistoryClient: IMatchHistoryClient
+        + ListActiveServers(filters: ServerFilters): List<Server>
+        + RegisterNewServer(data: ServerRegistrationData): Server
+        + ProcessHeartbeat(serverId: Int, players: Int): Error
+        + GenerateJoinToken(serverId: Int, playerId: Int): JoinToken
+        + ReservePartySlots(serverId: Int, partyId: Int): List<JoinToken>
+    }
+
+    interface IServerRepository <<Repository>> {
+        + FindActiveByFilters(filters: ServerFilters): List<Server>
+        + FindByID(id: Int): Server
+        + Upsert(server: Server): Error
+        + UpdateHeartbeat(id: Int, time: Timestamp, playerCount: Int): Error
+    }
+
+    class Server <<Entity>> {
+        + ServerID: Int
+        + IPAddress: String
+        + Port: Int
+        + Name: String
+        + MapRotation: String
+        + MaxPlayers: Int
+        + CurrentPlayers: Int
+        + IsOnline: Boolean
+        + LastHeartbeat: Timestamp
+        + Region: String
+        + Version: String
+        + CreatedAt: Timestamp
+    }
+
+    class ServerRegistrationRequest <<DTO>> {
+        + IPAddress: String
+        + Port: Int
+        + Name: String
+        + Region: String
+        + Version: String
+        + MapRotation: String
+        + MaxPlayers: Int
+    }
+
+    class JoinToken <<ValueObject>> {
+        + Token: String
+        + ExpiresAt: Timestamp
+        + ServerAddress: String
+        + ServerPort: Int
+    }
+}
+
+' External dependencies
+interface IMatchHistoryClient <<Service Interface>> {
+    + CreateMatch(serverId: Int, mapName: String): Int
+}
+
+' Relationships
+ServerRegistryController --> ServerRegistryService : uses
+ServerRegistryService --> IServerRepository : uses
+ServerRegistryService --> IMatchHistoryClient : uses
+IServerRepository ..> Server : manages
+ServerRegistryService ..> Server : creates/returns
+ServerRegistryController ..> ServerRegistrationRequest : consumes
+ServerRegistryController ..> JoinToken : returns
+
+@enduml

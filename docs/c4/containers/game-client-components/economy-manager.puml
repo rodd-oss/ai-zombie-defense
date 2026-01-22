@@ -1,0 +1,104 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title C4 Code-level Diagram: Economy Manager Component
+
+package "Game Client" {
+    class EconomyManager <<Component>> {
+        - scrapBalance: int
+        - dataBalance: int
+        + getScrapBalance(): int
+        + getDataBalance(): int
+        + updateLocalScrap(delta: int): void
+        + updateLocalData(delta: int): void
+        + fetchDataBalance(): Promise<int>
+        + purchaseCosmetic(cosmeticId: int): Promise<PurchaseStatus>
+        + getAvailableShopItems(type: ShopType): List<ShopItem>
+        + resetScrap(): void
+        --
+        ' Signals/Events
+        + onScrapChanged(newBalance: int): Signal
+        + onDataChanged(newBalance: int): Signal
+    }
+
+    class ShopComponent <<Component>> {
+        + openStore(): void
+        + selectItem(cosmeticId: int): void
+        + confirmPurchase(): void
+        - displayBalance(scrap: int, data: int): void
+    }
+
+    class NetworkClient <<Component>> {
+        + handleScrapUpdate(amount: int): void
+        + sendPurchaseRequest(weaponId: string): void
+        + sendBuildingPlacement(typeId: string, pos: Vector3): void
+    }
+
+    class BackendAPIClient <<Component>> {
+        + getDataCurrencyBalance(): Promise<int>
+        + postCosmeticPurchase(cosmeticId: int): Promise<PurchaseResponse>
+    }
+
+    class GameplayController <<Component>> {
+        + startPreparationPhase(): void
+        + onMapEnd(results: MatchResults): void
+    }
+
+    class ProgressionManager <<Component>> {
+        + updateProgression(rewards: MatchRewards): void
+    }
+
+    enum PurchaseStatus {
+        SUCCESS
+        INSUFFICIENT_FUNDS
+        ALREADY_OWNED
+        NETWORK_ERROR
+    }
+
+    enum ShopType {
+        WEAPON
+        BUILDING
+        SKILL
+        AMMO
+    }
+
+    struct ShopItem {
+        + id: string
+        + name: string
+        + cost: int
+        + type: ShopType
+    }
+
+    struct PurchaseResponse {
+        + success: boolean
+        + message: string
+        + newBalance: int
+    }
+}
+
+' Relationships
+ShopComponent --> EconomyManager : "Request balances / Initiate purchase"
+EconomyManager --> BackendAPIClient : "Fetch/Update persistent currency"
+NetworkClient --> EconomyManager : "Update local scrap (Server authoritative)"
+GameplayController --> EconomyManager : "Check balances for match phases"
+EconomyManager ..> PurchaseStatus : "Returns"
+BackendAPIClient ..> PurchaseResponse : "Returns"
+ProgressionManager ..> EconomyManager : "Synchronize rewards"
+
+note bottom of EconomyManager
+  <b>Referenced ERD Entities:</b>
+  - <b>player_progression</b>: Tracks <i>data_currency</i> and lifetime earnings.
+  - <b>cosmetic_items</b>: Defines <i>data_cost</i> for persistent unlocks.
+  - <b>player_match_stats</b>: Source of <i>scrap_earned</i> and <i>data_earned</i> per session.
+  - <b>player_cosmetics</b>: Stores ownership resulting from purchases.
+end note
+
+note right of EconomyManager
+  <b>Responsibilities:</b>
+  * Maintains thread-safe local cache of currencies.
+  * Synchronizes Scrap with Dedicated Server via NetworkClient.
+  * Synchronizes Data currency with Backend API.
+  * Provides reactive updates (Signals) to UI components.
+end note
+
+@enduml

@@ -1,0 +1,128 @@
+@startuml
+title Game Client: Progression Manager Component Diagram (C4 Code-level)
+
+skinparam class {
+    BackgroundColor White
+    ArrowColor #2688d4
+    BorderColor #2688d4
+}
+
+package "Game Client" {
+    class ProgressionManager <<component>> {
+        - localProgression: PlayerProgression
+        - skillPoints: int
+        - activeUpgrades: List<SkillUpgrade>
+        - cosmeticInventory: List<CosmeticItem>
+        - activeMissions: List<Mission>
+        
+        + updateLocalSkillPoints(points: int): void
+        + requestAvailableUpgrades(): List<SkillUpgrade>
+        + applyUpgradeLocally(upgradeId: String): void
+        + updateCosmeticInventory(cosmetics: List<CosmeticItem>, xp: int, prestige: int): void
+        + loadCosmeticInventory(): List<CosmeticItem>
+        + requestSkillPoints(): int
+        + loadUnlockedCosmetics(): List<CosmeticItem>
+        + loadAvailableCosmeticsCatalog(): List<CosmeticItem>
+        + loadActiveMissions(): List<Mission>
+        + updateLocalProgressionCache(data: ProgressionData): void
+        - calculateLevelProgress(xp: int): LevelInfo
+    }
+
+    class ShopComponent <<UI>> {
+        + openSkillTree(): void
+        + purchaseUpgrade(upgradeId: String): void
+        + openCosmeticStore(): void
+    }
+
+    class CharacterCustomization <<UI>> {
+        + openCustomization(): void
+        + equipCosmetic(cosmeticId: String): void
+    }
+
+    class GameplayController <<controller>> {
+        + startPreparationPhase(): void
+        + notifyWaveCompletion(stats: MatchStats): void
+    }
+
+    class ServerBrowser <<UI>> {
+        + initializeClient(): void
+        + refreshProgression(): void
+    }
+
+    class SettingsComponent <<UI>> {
+        + viewMissions(): void
+    }
+
+    class BackendAPIClient <<component>> {
+        + fetchPlayerProgression(): ProgressionData
+        + fetchUnlockedCosmetics(): List<CosmeticItem>
+        + fetchMissionProgress(): List<Mission>
+        + updateEquippedLoadout(loadout: Loadout): bool
+    }
+
+    class EconomyManager <<component>> {
+        - dataBalance: int
+        + getDataBalance(): int
+        + updateData(amount: int): void
+    }
+}
+
+package "Data Entities (ERD)" {
+    class PlayerProgression {
+        + level: int
+        + experience: int
+        + prestigeLevel: int
+        + totalKills: int
+        + totalWavesSurvived: int
+    }
+
+    class CosmeticItem {
+        + cosmeticId: int
+        + name: String
+        + rarity: Rarity
+        + slot: SlotType
+        + dataCost: int
+    }
+
+    class SkillUpgrade {
+        + upgradeId: String
+        + name: String
+        + effectValue: float
+        + skillPointCost: int
+    }
+
+    class Mission {
+        + missionId: int
+        + description: String
+        + currentProgress: int
+        + targetGoal: int
+        + rewardXp: int
+    }
+}
+
+' Relationships and Method Calls
+ShopComponent ..> ProgressionManager : "requestAvailableUpgrades()"
+CharacterCustomization ..> ProgressionManager : "loadUnlockedCosmetics()"
+GameplayController ..> ProgressionManager : "updateLocalSkillPoints(int)"
+GameplayController ..> ProgressionManager : "applyUpgradeLocally(String)"
+ServerBrowser ..> ProgressionManager : "updateLocalProgressionCache(ProgressionData)"
+SettingsComponent ..> ProgressionManager : "loadActiveMissions()"
+
+ProgressionManager ..> BackendAPIClient : "fetchPlayerProgression()"
+ProgressionManager ..> BackendAPIClient : "fetchUnlockedCosmetics()"
+ProgressionManager ..> EconomyManager : "coordinates Data currency updates"
+
+ProgressionManager "1" *-- "1" PlayerProgression : manages
+ProgressionManager "1" *-- "0..*" CosmeticItem : caches
+ProgressionManager "1" *-- "0..*" SkillUpgrade : tracks active
+ProgressionManager "1" *-- "0..*" Mission : monitors
+
+note right of ProgressionManager
+  <b>Progression Manager Role:</b>
+  Orchestrates all persistent and 
+  temporary player growth data.
+  Acts as the client-side authority
+  for skill point allocation.
+end note
+
+@enduml

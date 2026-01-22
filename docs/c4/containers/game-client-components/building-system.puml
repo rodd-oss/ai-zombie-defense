@@ -1,0 +1,117 @@
+@startuml
+title Game Client: Building System Component Diagram
+
+!define C4_COMPONENT
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' Style settings
+skinparam linetype polyline
+skinparam classAttributeIconSize 0
+
+package "Game Client" {
+    class BuildingSystem <<Component>> {
+        - isPlacementActive: boolean
+        - ghostPreviewInstance: GameObject
+        - activeBuildings: Map<string, Building>
+        + startPlacementPreview(typeId: string): void
+        + updateGhostPreview(position: Vector3, rotation: Quaternion, isValid: boolean): void
+        + cancelPlacement(): void
+        + confirmPlacement(typeId: string, position: Vector3, rotation: Quaternion): void
+        + placeBuilding(buildingId: string, typeId: string, position: Vector3, rotation: Quaternion, health: float): void
+        + updateBuildingVisuals(buildingId: string, health: float, maxHealth: float): void
+        + removeBuildingVisuals(buildingId: string): void
+        + interactWithBuilding(buildingId: string): void
+        + requestRepair(buildingId: string): void
+        + requestUpgrade(buildingId: string, upgradeType: string): void
+        + clearAllVisuals(): void
+        + showFeedback(message: string): void
+    }
+
+    class ShopComponent <<Component>> {
+        + openBuildingMenu(): void
+        + selectBuildingType(typeId: string): void
+        + displayScrapBalance(balance: int): void
+    }
+
+    class EconomyManager <<Component>> {
+        - scrapBalance: int
+        + getScrapBalance(): int
+        + getAvailableBuildings(): List<BuildingType>
+        + updateBalance(newBalance: int): void
+    }
+
+    class GameClient <<Container>> {
+        + sendPlacementRequest(typeId: string, pos: Vector3, rot: Quaternion): void
+        + sendRepairRequest(buildingId: string): void
+        + sendUpgradeRequest(buildingId: string, upgradeType: string): void
+        + onServerMessage(message: NetworkMessage): void
+    }
+
+    class Building <<Entity>> {
+        + id: string
+        + typeId: string
+        + position: Vector3
+        + rotation: Quaternion
+        + currentHealth: float
+        + maxHealth: float
+    }
+
+    class BuildingType <<Entity>> {
+        + id: string
+        + name: string
+        + scrapCost: int
+        + maxHealth: float
+        + category: BuildingCategory
+    }
+
+    enum BuildingCategory {
+        WALL
+        TURRET
+        TRAP
+    }
+}
+
+package "Dedicated Server" {
+    class DedicatedServer <<Container>> {
+        + processPlacement(playerID: string, typeID: string, pos: Vector3): void
+        + processRepair(playerID: string, buildingID: string): void
+        + processUpgrade(playerID: string, buildingID: string, type: string): void
+    }
+}
+
+package "Database (via Backend API)" {
+    entity "player_match_stats" as PlayerMatchStats {
+        * player_id : INTEGER
+        * match_id : INTEGER
+        --
+        buildings_built : INTEGER
+        buildings_destroyed : INTEGER
+    }
+}
+
+' Relationships
+ShopComponent ..> EconomyManager : "requests scrap & options"
+ShopComponent ..> BuildingSystem : "starts preview"
+BuildingSystem ..> Building : "manages"
+BuildingSystem ..> BuildingType : "references"
+BuildingSystem ..> GameClient : "sends requests via"
+GameClient ..> DedicatedServer : "Network messages (UDP/TCP)"
+DedicatedServer ..> GameClient : "Confirmations & Updates"
+GameClient ..> BuildingSystem : "routes server events"
+BuildingSystem ..> PlayerMatchStats : "indirectly updates (via match results)"
+
+note bottom of BuildingSystem
+    **US006 Building Mechanics**
+    - Client-side prediction for ghost preview
+    - Ghost preview follows cursor/aim
+    - Validates local placement rules before sending to server
+    - Receives health updates from server authoritative simulation
+end note
+
+note bottom of BuildingType
+    **Temporary Match Data**
+    Defined in game config but not 
+    persisted in database between matches.
+end note
+
+@enduml

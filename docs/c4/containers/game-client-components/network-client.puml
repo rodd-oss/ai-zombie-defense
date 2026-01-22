@@ -1,0 +1,175 @@
+@startuml
+title Game Client: Network Client Component Class Diagram
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+package "Game Client" {
+    class NetworkClient {
+        - serverAddress: String
+        - serverPort: Int
+        - connectionState: ConnectionState
+        - lastSequenceNumber: Long
+        - ping: Int
+        
+        ' Connection Management
+        + connect(ip: String, port: Int, joinToken: String): void
+        + disconnect(): void
+        + sendHeartbeat(): void
+        
+        ' Combat System Interface (US003, US004)
+        + sendFireInput(weaponId: String, viewDir: Vector3, timestamp: Long): void
+        + sendHitReport(targetId: String, weaponId: String): void
+        + sendReloadRequest(): void
+        + sendHealRequest(): void
+        + sendReviveRequest(targetPlayerId: String): void
+        
+        ' Building System Interface (US003, US006)
+        + sendBuildingPlacement(typeId: String, pos: Vector3, rot: Quaternion): void
+        + sendRepairRequest(buildingId: String): void
+        + sendBuildingUpgrade(buildingId: String, upgradeType: String): void
+        
+        ' Economy & Progression Interface (US001, US003)
+        + sendPurchaseRequest(itemId: String): void
+        + sendSkillUpgradeRequest(skillId: String): void
+        
+        ' Social Features Interface (US005, US008)
+        + sendChatMessage(channel: String, content: String): void
+        + sendVoicePacket(data: byte[]): void
+        + sendPing(type: PingType, pos: Vector3): void
+        + sendPartyInvite(friendId: String): void
+        + sendPartyResponse(inviteId: String, accepted: Boolean): void
+        
+        ' Internal Processing
+        - handleServerPacket(payload: byte[]): void
+        - reconcilePrediction(serverId: Long): void
+        - updateLatency(serverTime: Long): void
+    }
+
+    interface NetworkEventListener {
+        + onConnected(): void
+        + onDisconnected(reason: String): void
+        + onMatchStateUpdated(state: MatchState): void
+        + onPlayerStateUpdated(player: PlayerState): void
+        + onEnemyStateUpdated(enemies: EnemyState[]): void
+        + onBuildingStateUpdated(buildings: BuildingState[]): void
+        + onCombatFeedback(feedback: CombatFeedback): void
+        + onSocialEvent(event: SocialEvent): void
+        + onWaveEvent(event: WaveEvent): void
+        + onPOIStateUpdated(poi: POIState): void
+        + onEconomyUpdate(scrap: Int, skillPoints: Int): void
+    }
+
+    ' DTOs and Local Types
+    class PlayerState {
+        + playerId: String
+        + position: Vector3
+        + rotation: Quaternion
+        + health: Int
+        + armor: Int
+        + currentWeaponId: String
+        + ammoReserves: Int
+        + clipAmmo: Int
+        + isDowned: Boolean
+    }
+
+    class EnemyState {
+        + enemyId: String
+        + type: EnemyType
+        + position: Vector3
+        + health: Int
+        + targetId: String
+        + currentAnimation: String
+    }
+
+    class BuildingState {
+        + buildingId: String
+        + typeId: String
+        + position: Vector3
+        + rotation: Quaternion
+        + health: Int
+        + upgradeLevel: Int
+    }
+
+    class MatchState {
+        + matchId: String
+        + currentPhase: MatchPhase
+        + timeRemaining: Float
+        + playerCount: Int
+    }
+
+    class WaveEvent {
+        + waveNumber: Int
+        + status: WaveStatus
+        + poiTargetId: String
+    }
+
+    class CombatFeedback {
+        + type: FeedbackType
+        + damageDealt: Int
+        + isCritical: Boolean
+        + targetId: String
+    }
+}
+
+' External References from ERD/C4
+package "Shared Data Entities" {
+    enum EnemyType {
+        WALKER
+        RUNNER
+        TANK
+        SPITTER
+        VAMPIRE
+    }
+
+    enum MatchPhase {
+        PREPARATION
+        WAVE_ACTIVE
+        MATCH_END
+        TRANSITION
+    }
+
+    enum PingType {
+        GENERAL
+        ENEMY
+        ITEM
+        LOCATION
+    }
+}
+
+' Data types
+class Vector3 {
+    + x: Float
+    + y: Float
+    + z: Float
+}
+
+class Quaternion {
+    + x: Float
+    + y: Float
+    + z: Float
+    + w: Float
+}
+
+enum ConnectionState {
+    DISCONNECTED
+    CONNECTING
+    CONNECTED
+    TIMED_OUT
+}
+
+' Relationships
+NetworkClient "1" *-- "many" NetworkEventListener : observers
+NetworkClient ..> MatchState : uses
+NetworkClient ..> PlayerState : replicates
+NetworkClient ..> EnemyState : replicates
+NetworkClient ..> BuildingState : replicates
+
+note bottom of NetworkClient
+  **Network Client Role (US003, US009)**
+  - Manages low-latency UDP communication with Dedicated Server.
+  - Implements client-side prediction and server reconciliation (US004).
+  - Synchronizes world state (Players, Enemies, Buildings) from Server.
+  - Relays ephemeral social data (Voice, Chat, Pings) (US005).
+end note
+
+@enduml

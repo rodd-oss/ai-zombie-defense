@@ -1,0 +1,92 @@
+@startuml Wave Manager Component Class Diagram
+title Dedicated Server - Wave Manager Component (wave_manager)
+
+' Participants and their roles:
+' 1. WaveManager: Orchestrates wave lifecycle, enemy spawning, and POI health tracking.
+' 2. AIController: Manages AI lifecycle, pathfinding, and reports status back to WaveManager.
+' 3. MatchManager: Coordinates high-level match state, transitions, and end-of-map logic.
+' 4. EconomyValidator: Validates and awards in-match temporary currency (Skill Points).
+' 5. GameSimulation: Maintains authoritative server state for POIs and entity spawning.
+' 6. NetworkServer: Replicates synchronized wave state and events to all Game Clients.
+' 7. ServerBackendAPIClient: Communicates with Backend API for persistent loot drops.
+
+package "Dedicated Server" {
+    class WaveManager <<Component>> {
+        - currentWaveIndex: int
+        - activePoiIndex: int
+        - waveTimeRemaining: float
+        - activeEnemyCount: int
+        
+        + startWave(waveIndex: int): void
+        + endWave(success: boolean): void
+        + spawnEnemyWave(waveConfig: WaveConfig): void
+        + onEnemyDeath(enemyId: string, enemyType: string): void
+        + onPoiHealthUpdate(poiId: string, health: float): void
+        + onPoiDestroyed(poiId: string): void
+        + checkRemainingEnemies(): void
+        + broadcastWaveState(): void
+        + requestLootDrop(playerId: string): void
+        + awardWaveCompletionRewards(): void
+    }
+
+    class AIController <<Component>> {
+        + spawnEnemyWave(config: WaveConfig): void
+        + getRemainingEnemyCount(): int
+        + reportEnemyDeath(enemyId: string, type: string): void
+    }
+
+    class MatchManager <<Component>> {
+        + onWaveCompleted(waveIndex: int): void
+        + onPoiDestroyed(poiId: string): void
+        + onMatchEnded(outcome: string): void
+        + onPreparationPhaseEnded(): void
+    }
+
+    class EconomyValidator <<Component>> {
+        + awardSkillPoints(reason: string): void
+        + onAwardCompleted(): void
+    }
+
+    class GameSimulation <<Component>> {
+        + updatePoiHealth(poiId: string): void
+        + checkPoiDestruction(poiId: string): boolean
+        + spawnLootDrop(entityId: string, position: Vector3): void
+    }
+
+    class NetworkServer <<Component>> {
+        + broadcastWaveState(wave: int, time: float, poiHealth: float): void
+        + broadcastWaveStart(wave: int, poiTarget: string): void
+        + broadcastPoiHealthUpdate(poiId: string, health: float): void
+        + broadcastPoiDestroyed(poiId: string): void
+    }
+
+    class ServerBackendAPIClient <<Component>> {
+        + requestLootDrop(playerId: string): void
+    }
+
+    class CombatValidator <<Component>> {
+        + notifySpecialEnemyDefeated(enemyId: string): void
+    }
+}
+
+' Relationships
+WaveManager --> AIController : "Commands spawning via"
+WaveManager --> MatchManager : "Notifies of lifecycle events"
+WaveManager --> EconomyValidator : "Requests skill point awards"
+WaveManager --> GameSimulation : "Manages POI health and loot via"
+WaveManager --> NetworkServer : "Syncs state to clients via"
+WaveManager --> ServerBackendAPIClient : "Requests persistent rewards"
+
+AIController ..> WaveManager : "Reports enemy deaths/count"
+GameSimulation ..> WaveManager : "Reports POI health updates"
+CombatValidator ..> WaveManager : "Reports special enemy deaths"
+EconomyValidator ..> WaveManager : "Confirms award completion"
+
+note bottom of WaveManager
+  **ERD Entities Referenced:**
+  * **matches**: contributes to waves_survived and outcome
+  * **player_match_stats**: updates waves_survived per player
+  * **loot_tables**: referenced via Backend API for special drops
+end note
+
+@enduml

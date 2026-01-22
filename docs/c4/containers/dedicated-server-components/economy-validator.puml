@@ -1,0 +1,74 @@
+@startuml
+title Dedicated Server - Economy Validator Component
+
+package "Dedicated Server" {
+    class EconomyValidator <<GDScript>> {
+        + award_scrap_for_kill(player_id: int, enemy_id: String): void
+        + award_skill_points(player_id: int, wave_number: int): void
+        + validate_and_process_purchase(player_id: int, item_id: String, type: PurchaseType): PurchaseResult
+        - _lookup_cost(item_id: String, type: PurchaseType): int
+        - _check_balance(player_id: int, currency: CurrencyType, amount: int): bool
+    }
+
+    class GameSimulation <<GDScript>> {
+        + get_player_balance(player_id: int, currency: CurrencyType): int
+        + update_player_balance(player_id: int, currency: CurrencyType, delta: int): void
+        + grant_weapon(player_id: int, weapon_id: String): void
+        + grant_ammo(player_id: int, ammo_id: String): void
+        + apply_skill_upgrade(player_id: int, upgrade_id: String): void
+        + spawn_building(player_id: int, building_id: String, transform: Transform3D): void
+    }
+
+    class BuildingValidator <<GDScript>> {
+        + validate_placement(player_id: int, building_id: String, transform: Transform3D): bool
+    }
+
+    class CombatValidator <<GDScript>> {
+    }
+
+    class WaveManager <<GDScript>> {
+    }
+
+    class NetworkServer <<GDScript>> {
+    }
+
+    enum CurrencyType {
+        SCRAP
+        SKILL_POINTS
+    }
+
+    enum PurchaseType {
+        WEAPON
+        AMMO
+        BUILDING
+        SKILL_UPGRADE
+        REPAIR
+        BUILDING_UPGRADE
+    }
+
+    class PurchaseResult {
+        + success: bool
+        + message: String
+        + new_balance: int
+    }
+}
+
+' Relationships
+CombatValidator --> EconomyValidator : "award_scrap_for_kill()"
+WaveManager --> EconomyValidator : "award_skill_points()"
+NetworkServer --> EconomyValidator : "validate_and_process_purchase()"
+
+EconomyValidator --> GameSimulation : "get/update balance,\napply effects"
+EconomyValidator --> BuildingValidator : "validate_placement()\n(for buildings)"
+
+EconomyValidator ..> PurchaseType : "uses"
+EconomyValidator ..> CurrencyType : "uses"
+EconomyValidator ..> PurchaseResult : "returns"
+
+note right of EconomyValidator
+  Validates all in-match transactions.
+  Scrap and Skill Points are temporary
+  and reset at map end.
+end note
+
+@enduml

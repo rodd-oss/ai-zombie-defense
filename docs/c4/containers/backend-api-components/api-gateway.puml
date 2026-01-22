@@ -1,0 +1,131 @@
+@startuml api-gateway-classes
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Class Diagram for API Gateway (Backend API)
+
+' Define the main API Gateway component
+class APIGateway {
+  + Role: Primary entry point for all external requests
+  - router: Router
+  - authService: AuthService
+  - accountService: AccountService
+  - progressionService: ProgressionService
+  - matchHistoryService: MatchHistoryService
+  - serverRegistryService: ServerRegistryService
+  - leaderboardService: LeaderboardService
+  - lootService: LootService
+  + ServeHTTP(w: http.ResponseWriter, r: *http.Request)
+  - setupRoutes()
+  - applyMiddleware(next: http.Handler): http.Handler
+}
+
+' Group handlers by functional responsibility
+package "Handlers" {
+  class AuthHandler {
+    + Login(credentials: LoginRequest): LoginResponse
+    + Logout(sessionToken: string): error
+  }
+
+  class AccountHandler {
+    + GetProfile(playerID: int): PlayerProfile
+    + UpdateSettings(playerID: int, settings: PlayerSettings): error
+  }
+
+  class ProgressionHandler {
+    + GetProgression(playerID: int): PlayerProgression
+    + GetCosmetics(playerID: int): List<CosmeticItem>
+    + EquipCosmetic(playerID: int, loadout: LoadoutCosmetic): error
+    + PurchaseCosmetic(playerID: int, cosmeticID: int): PurchaseResult
+    + GetMissions(playerID: int): List<MissionProgress>
+  }
+
+  class MatchHandler {
+    + SubmitResults(results: MatchResults): MatchResultsResponse
+    + GetMatchHistory(playerID: int): List<Match>
+  }
+
+  class ServerHandler {
+    + ListServers(filter: ServerFilter): List<Server>
+    + JoinServer(serverID: int): JoinToken
+    + JoinAsParty(partyID: int, serverID: int): List<JoinToken>
+  }
+
+  class SocialHandler {
+    + GetFriends(playerID: int): List<Friend>
+    + SendFriendRequest(playerID: int, targetUsername: string): error
+    + AcceptFriendRequest(playerID: int, requestID: int): error
+    + CreateParty(leaderID: int): PartyInfo
+    + InviteToParty(partyID: int, targetPlayerID: int): error
+  }
+
+  class LeaderboardHandler {
+    + GetLeaderboard(period: string): List<LeaderboardEntry>
+  }
+}
+
+' Mapping to ERD Entities (as return types/parameters)
+package "DataModels" {
+  class PlayerProfile <<(E,#FFAAAA) ERD Entity>> {
+    + player_id: int
+    + username: string
+    + email: string
+  }
+  
+  class PlayerProgression <<(E,#FFAAAA) ERD Entity>> {
+    + level: int
+    + experience: int
+    + data_currency: int
+  }
+
+  class Server <<(E,#FFAAAA) ERD Entity>> {
+    + server_id: int
+    + ip_address: string
+    + port: int
+    + current_players: int
+  }
+
+  class Match <<(E,#FFAAAA) ERD Entity>> {
+    + match_id: int
+    + map_name: string
+    + waves_survived: int
+  }
+
+  class CosmeticItem <<(E,#FFAAAA) ERD Entity>> {
+    + cosmetic_id: int
+    + name: string
+    + data_cost: int
+  }
+}
+
+' Relationships between APIGateway and Handlers
+APIGateway *-- AuthHandler
+APIGateway *-- AccountHandler
+APIGateway *-- ProgressionHandler
+APIGateway *-- MatchHandler
+APIGateway *-- ServerHandler
+APIGateway *-- SocialHandler
+APIGateway *-- LeaderboardHandler
+
+' Handlers return/accept DataModels
+AuthHandler ..> PlayerProfile : uses
+ProgressionHandler ..> PlayerProgression : uses
+ProgressionHandler ..> CosmeticItem : uses
+ServerHandler ..> Server : uses
+MatchHandler ..> Match : uses
+SocialHandler ..> PlayerProfile : uses
+LeaderboardHandler ..> Match : uses
+
+' Description of roles
+note top of APIGateway
+  **Role:** 
+  Acts as a Reverse Proxy and API Gateway.
+  Handles:
+  - Request Routing (Mux)
+  - Authentication (JWT Validation)
+  - Rate Limiting
+  - CORS Configuration
+  - Request/Response Logging
+end note
+
+footer Generated based on Sequence Diagrams (US001-US009) and Database ERD
+@enduml

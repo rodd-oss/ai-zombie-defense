@@ -1,0 +1,87 @@
+@startuml
+title Component Class Diagram: Server Browser (Game Client)
+
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+package "Game Client" {
+    class ServerBrowser <<Component>> {
+        - serverList: Array<Server>
+        - favorites: Array<ServerFavorite>
+        - selectedServer: Server
+        - currentFilters: ServerFilters
+        + open(): void
+        + refreshList(): void
+        + applyFilters(filters: ServerFilters): void
+        + selectServer(server: Server): void
+        + joinSelectedServer(): void
+        + toggleFavorite(serverId: int): void
+    }
+
+    class BackendAPIClient <<Component>> {
+        + getServers(filters: ServerFilters): Array<Server>
+        + getFavoriteServers(playerId: int): Array<ServerFavorite>
+        + addFavorite(playerId: int, serverId: int): void
+        + removeFavorite(playerId: int, serverId: int): void
+    }
+
+    class NetworkClient <<Component>> {
+        + initiateConnection(ip: string, port: int): ConnectionResult
+        + disconnect(): void
+    }
+
+    class GameplayController <<Component>> {
+        + transitionToPreparationPhase(matchState: MatchState): void
+    }
+
+    class Server <<Entity>> {
+        + server_id: int
+        + ip_address: string
+        + port: int
+        + name: string
+        + map_rotation: string
+        + max_players: int
+        + current_players: int
+        + is_online: boolean
+        + region: string
+        + version: string
+    }
+
+    class ServerFavorite <<Entity>> {
+        + player_id: int
+        + server_id: int
+        + added_at: timestamp
+        + note: string
+    }
+
+    struct ServerFilters {
+        + region: string
+        + mapName: string
+        + gameMode: string
+        + hideFull: boolean
+        + hideEmpty: boolean
+    }
+
+    enum ConnectionResult {
+        SUCCESS
+        TIMEOUT
+        SERVER_FULL
+        VERSION_MISMATCH
+        BANNED
+    }
+}
+
+' Relationships
+ServerBrowser --> BackendAPIClient : uses
+ServerBrowser --> NetworkClient : uses
+ServerBrowser --> GameplayController : notifies
+ServerBrowser "1" *-- "many" Server : displays
+ServerBrowser "1" *-- "many" ServerFavorite : tracks
+ServerBrowser ..> ServerFilters : uses
+
+BackendAPIClient ..> Server : fetches
+BackendAPIClient ..> ServerFavorite : manages
+
+NetworkClient ..> ConnectionResult : returns
+
+@enduml

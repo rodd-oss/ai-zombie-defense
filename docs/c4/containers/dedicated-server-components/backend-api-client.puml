@@ -1,0 +1,84 @@
+@startuml
+title Dedicated Server - Backend API Client Component Diagram
+
+package "Dedicated Server" {
+    class "MatchManager" <<Component>> {
+        + endMatch()
+        - calculateRewards()
+    }
+
+    class "WaveManager" <<Component>> {
+        + onSpecialEnemyKilled(playerID: Integer)
+    }
+
+    class "ServerBackendAPIClient" <<Component>> {
+        + submitMatchResults(results: MatchResults, stats: List<PlayerStats>): MatchResultsResponse
+        + requestLootDrop(playerID: Integer): LootDropResponse
+    }
+}
+
+package "Backend API" {
+    interface "API" {
+        + POST /match/results
+        + POST /loot/drop
+    }
+}
+
+package "Data Models" {
+    class "MatchResults" {
+        + server_id: Integer
+        + map_name: String
+        + game_mode: String
+        + start_time: Timestamp
+        + end_time: Timestamp
+        + outcome: MatchOutcome
+        + waves_survived: Integer
+    }
+
+    class "PlayerStats" {
+        + player_id: Integer
+        + waves_survived: Integer
+        + zombies_killed: Integer
+        + deaths: Integer
+        + scrap_earned: Integer
+        + data_earned: Integer
+        + damage_dealt: Integer
+        + damage_taken: Integer
+        + buildings_built: Integer
+        + revives: Integer
+    }
+
+    class "MatchResultsResponse" {
+        + match_id: Integer
+        + rewards: List<Reward>
+        + cosmetic_unlocks: List<CosmeticItem>
+    }
+
+    class "LootDropResponse" {
+        + cosmetic_item: CosmeticItem
+        + success: Boolean
+    }
+
+    enum "MatchOutcome" {
+        COMPLETED
+        FAILED
+        ABANDONED
+    }
+}
+
+MatchManager ..> ServerBackendAPIClient : "uses"
+WaveManager ..> ServerBackendAPIClient : "uses"
+ServerBackendAPIClient ..> API : "calls via HTTP"
+
+ServerBackendAPIClient ..> MatchResults : "encapsulates"
+ServerBackendAPIClient ..> PlayerStats : "encapsulates"
+ServerBackendAPIClient ..> MatchResultsResponse : "returns"
+ServerBackendAPIClient ..> LootDropResponse : "returns"
+
+note bottom of ServerBackendAPIClient
+  Role: Responsible for communicating with the
+  Backend API to persist match results, player
+  stats, and request loot drops for the Dedicated Server.
+end note
+
+@enduml

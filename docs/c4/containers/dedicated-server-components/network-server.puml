@@ -1,0 +1,73 @@
+@startuml
+title Dedicated Server - Network Server Component
+
+package "Dedicated Server" {
+    class "Network Server" <<component>> {
+        -- Methods --
+        + handleNewClientConnection(handshakeData: HandshakeData): ConnectionResult
+        + addPlayerToMatch(playerId: String): void
+        + validateIncomingConnection(connectionRequest: ConnectionRequest): boolean
+        + broadcastMatchState(state: MatchState): void
+        + broadcastInventoryUpdate(playerId: String, item: InventoryItem): void
+        + broadcastBuildingSpawn(building: BuildingData): void
+        + broadcastUpgradeEffect(playerId: String, upgradeId: String): void
+        + broadcastWaveStart(waveNumber: int, poiTarget: String): void
+        + broadcastWaveState(waveState: WaveState): void
+        + broadcastWaveCompletion(waveNumber: int): void
+        + replicateEnemyPositions(enemyPositions: Map<String, Position>): void
+        + broadcastDamageResult(targetId: String, damage: float, isKill: boolean): void
+        + broadcastPOIDestroyed(poiId: String): void
+        + broadcastPOIHealthUpdate(poiId: String, health: float): void
+        + broadcastPlayerDowned(playerId: String): void
+        + broadcastPlayerRevived(playerId: String): void
+        + broadcastPlayerState(playerState: PlayerState): void
+        + sendValidationResponse(sequence: int, validationData: ValidationData): void
+        + sendHealConfirmation(playerId: String): void
+        + updateAmmoCounts(playerId: String, ammo: Map<String, int>): void
+        + confirmPurchase(playerId: String, result: PurchaseResult): void
+        + processChatMessage(playerId: String, channel: String, content: String): void
+        + routeAudioStream(playerId: String, audioData: byte[]): void
+        + processPing(playerId: String, pingData: PingData): void
+        + processFireInput(playerId: String, fireData: FireData): void
+    }
+
+    class "Game Simulation" <<component>>
+    class "Match Manager" <<component>>
+    class "Party Manager" <<component>>
+    class "Combat Validator" <<component>>
+    class "Building Validator" <<component>>
+    class "Economy Validator" <<component>>
+    class "AI Controller" <<component>>
+    class "Wave Manager" <<component>>
+}
+
+package "Game Client" {
+    class "Network Client" <<component>>
+}
+
+package "Database" {
+    entity "players"
+    entity "servers"
+    entity "matches"
+}
+
+' Relationships
+"Network Server" --> "Game Simulation" : "Adds players, validates pings"
+"Network Server" --> "Match Manager" : "Validates connections"
+"Network Server" --> "Party Manager" : "Relays chat/voice, gets recipients"
+"Network Server" --> "Combat Validator" : "Processes fire input"
+"Network Server" <.. "Combat Validator" : "Validation results"
+"Network Server" <.. "Economy Validator" : "Purchase confirmations"
+"Network Server" <.. "AI Controller" : "Enemy state updates"
+"Network Server" <.. "Wave Manager" : "Wave state updates"
+"Network Server" <.. "Match Manager" : "Match state updates"
+"Network Server" <.. "Game Simulation" : "Position replication, health updates"
+
+"Network Server" <--> "Network Client" : "UDP Packets (Handshake, Inputs, State Replicaton)"
+
+' ERD References
+"Network Server" ..> "players" : "Identifies via player_id"
+"Network Server" ..> "servers" : "Binds to ip_address and port"
+"Network Server" ..> "matches" : "Context of match_id"
+
+@enduml
