@@ -59,8 +59,8 @@
         "Tests pass"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Database connection pooling implemented with WAL mode, foreign keys, and configurable pool settings."
     },
     {
       "id": "US-005",
@@ -74,8 +74,8 @@
         "Tests pass"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Structured logging with Zap and configuration with Viper implemented. Logger supports JSON/console output via LOG_ENCODING. Configuration loaded from environment variables with defaults."
     },
     {
       "id": "US-006",

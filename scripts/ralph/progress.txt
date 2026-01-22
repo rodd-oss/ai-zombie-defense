@@ -8,6 +8,9 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Foreign key indexes are not automatically created; need explicit CREATE INDEX
 - Migration files require `-- +goose Up` and `-- +goose Down` annotations with proper ordering (drop indexes before tables)
 - Enable foreign keys with `PRAGMA foreign_keys = ON` and WAL mode with `PRAGMA journal_mode = WAL` on database connection
+- Database connection pooling: Use `database.OpenDB(path)` with default settings (MaxOpenConns=5, MaxIdleConns=2, ConnMaxLifetime=5m, ConnMaxIdleTime=2m)
+- Logging: Use zap logger with LOG_LEVEL and LOG_ENCODING environment variables (json/console)
+- Configuration: Use viper with uppercase environment variables; JWT_SECRET required
 
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
@@ -43,4 +46,29 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Use `goose.SetDialect("sqlite")` before running migrations
   - The migration CLI enables foreign keys and WAL mode automatically
   - Test migrations with in-memory SQLite for speed and isolation
+---
+
+## 2026-01-22 11:52 UTC - US-004
+- Created database connection pooling with WAL mode and foreign keys enabled
+- Implemented OpenDB and OpenInMemory functions in pkg/database
+- Added connection pool configuration with defaults (MaxOpenConns=5, MaxIdleConns=2, etc.)
+- Files changed: packages/go/db/pkg/database/database.go, packages/go/db/pkg/database/database_test.go, packages/go/db/AGENTS.md, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Use `database.OpenDB(path)` for production connections; automatically enables foreign keys and WAL mode
+  - Default pool settings are appropriate for SQLite; adjust based on workload
+  - In-memory SQLite uses "memory" journal mode, not WAL; test accordingly
+  - Connection pooling is essential for concurrent API requests; share *sql.DB instance across application
+---
+
+## 2026-01-22 14:58 UTC - US-005
+- Set up structured logging with Zap logger and JSON/console output
+- Configured environment variable loading with Viper
+- Created config struct with database, server, and JWT settings
+- Files changed: go.work, go.work.sum, packages/go/server/go.mod, packages/go/server/pkg/logging/*, packages/go/server/pkg/config/*, packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Use zap logger with LOG_LEVEL and LOG_ENCODING environment variables
+  - Viper automatically binds environment variables with uppercase names
+  - JWT_SECRET is required; no default for security
+  - Go workspace must include new modules in go.work
+  - Run `go mod tidy` after adding dependencies
 ---
