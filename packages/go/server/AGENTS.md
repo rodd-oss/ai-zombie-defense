@@ -56,3 +56,12 @@
 - Validate refresh tokens against both JWT signature and session store
 - Refresh endpoint rotates tokens (deletes old session, creates new one)
 - Logout endpoint deletes the session by token
+
+## Middleware
+
+- JWT middleware is available in `pkg/middleware.AuthMiddleware`
+- Use `middleware.AuthMiddleware(authService, logger)` to protect routes
+- Extracts player ID from token subject claim and stores in `c.Locals("player_id")`
+- Helper functions `middleware.GetPlayerID(c)` and `middleware.GetClaims(c)` retrieve data
+- Returns 401 for missing/invalid tokens with JSON error response
+- Always use Bearer token format: `Authorization: Bearer <token>`

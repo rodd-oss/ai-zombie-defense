@@ -13,6 +13,7 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Configuration: Use viper with uppercase environment variables; JWT_SECRET required
 - Use JWT ID (jti) claim with random bytes to ensure refresh token uniqueness
 - Use Fiber v2 for HTTP server; import fiberLogger to avoid naming conflict with zap logger
+- Fiber middleware: use c.Locals to pass data to downstream handlers; define constant keys for local keys
 - Fiber's Shutdown method is ShutdownWithContext(ctx); call with timeout context
 - Server configuration uses SERVER_HOST and SERVER_PORT environment variables (default 0.0.0.0:8080)
 - Test HTTP servers using random free ports via net.Listen and zaptest.Logger
@@ -117,4 +118,15 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Use JWT ID (jti) claim with random bytes to guarantee token uniqueness
   - Fiber's app.Test() is convenient for handler testing without starting server
   - SQLite unique constraint errors should be handled gracefully (duplicate token case)
+---
+
+## 2026-01-22 14:20 UTC - US-010
+- Implemented JWT middleware for protected endpoints (AuthMiddleware)
+- Added helper functions GetPlayerID and GetClaims to retrieve data from Fiber locals
+- Created comprehensive tests for middleware with valid/invalid tokens
+- Files changed: packages/go/server/pkg/middleware/auth.go, packages/go/server/pkg/middleware/auth_test.go
+- **Learnings for future iterations:**
+  - Fiber middleware pattern expects a function returning fiber.Handler
+  - Use c.Locals to pass data to downstream handlers; keys should be constants
+  - Token validation uses auth.Service.ValidateToken; subject claim contains player ID as string
 ---
