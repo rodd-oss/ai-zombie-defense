@@ -35,6 +35,17 @@ func (q *Queries) CreatePlayerProgression(ctx context.Context, db DBTX, playerID
 	return err
 }
 
+const getDataCurrency = `-- name: GetDataCurrency :one
+SELECT data_currency FROM player_progression WHERE player_id = ?
+`
+
+func (q *Queries) GetDataCurrency(ctx context.Context, db DBTX, playerID int64) (int64, error) {
+	row := db.QueryRowContext(ctx, getDataCurrency, playerID)
+	var data_currency int64
+	err := row.Scan(&data_currency)
+	return data_currency, err
+}
+
 const getPlayerProgression = `-- name: GetPlayerProgression :one
 SELECT player_id, level, experience, prestige_level, data_currency, total_matches_played, total_waves_survived, total_kills, total_deaths, total_scrap_earned, total_data_earned, updated_at FROM player_progression WHERE player_id = ?
 `
@@ -122,6 +133,23 @@ WHERE player_id = ?
 
 func (q *Queries) PrestigePlayer(ctx context.Context, db DBTX, playerID int64) error {
 	_, err := db.ExecContext(ctx, prestigePlayer, playerID)
+	return err
+}
+
+const setDataCurrency = `-- name: SetDataCurrency :exec
+UPDATE player_progression
+SET data_currency = ?,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE player_id = ?
+`
+
+type SetDataCurrencyParams struct {
+	DataCurrency int64 `json:"data_currency"`
+	PlayerID     int64 `json:"player_id"`
+}
+
+func (q *Queries) SetDataCurrency(ctx context.Context, db DBTX, arg *SetDataCurrencyParams) error {
+	_, err := db.ExecContext(ctx, setDataCurrency, arg.DataCurrency, arg.PlayerID)
 	return err
 }
 

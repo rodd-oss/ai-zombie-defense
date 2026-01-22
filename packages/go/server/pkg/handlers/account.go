@@ -300,3 +300,65 @@ func (h *AccountHandlers) PrestigePlayer(c *fiber.Ctx) error {
 		GrantedCosmetics: []int64{},
 	})
 }
+
+// GetCurrencyBalance handles GET /progression/currency
+func (h *AccountHandlers) GetCurrencyBalance(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	ctx := c.Context()
+	progression, err := h.service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		h.logger.Error("failed to get player progression", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data_currency": progression.DataCurrency,
+	})
+}
+
+// GetCosmeticCatalog handles GET /cosmetics/catalog
+func (h *AccountHandlers) GetCosmeticCatalog(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	ctx := c.Context()
+	items, err := h.service.GetCosmeticCatalog(ctx)
+	if err != nil {
+		h.logger.Error("failed to get cosmetic catalog", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(items)
+}
+
+// GetPlayerCosmetics handles GET /cosmetics/owned
+func (h *AccountHandlers) GetPlayerCosmetics(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	ctx := c.Context()
+	items, err := h.service.GetPlayerCosmetics(ctx, playerID)
+	if err != nil {
+		h.logger.Error("failed to get player cosmetics", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(items)
+}

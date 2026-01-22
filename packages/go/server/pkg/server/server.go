@@ -81,7 +81,13 @@ func (s *Server) registerRoutes() {
 		// Progression routes (protected by JWT middleware)
 		progressionGroup := s.app.Group("/progression", middleware.AuthMiddleware(authService, s.logger))
 		progressionGroup.Get("/", accountHandlers.GetProgression)
+		progressionGroup.Get("/currency", accountHandlers.GetCurrencyBalance)
 		progressionGroup.Post("/prestige", accountHandlers.PrestigePlayer)
+
+		// Cosmetics routes (protected by JWT middleware)
+		cosmeticsGroup := s.app.Group("/cosmetics", middleware.AuthMiddleware(authService, s.logger))
+		cosmeticsGroup.Get("/catalog", accountHandlers.GetCosmeticCatalog)
+		cosmeticsGroup.Get("/owned", accountHandlers.GetPlayerCosmetics)
 	}
 }
 

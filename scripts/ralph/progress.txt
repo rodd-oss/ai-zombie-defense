@@ -192,3 +192,15 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Fiber handlers can reuse existing account handlers; no need for separate progression handler
   - Prestige cosmetics are identified by is_prestige_only flag and unlock_level as prestige requirement
 ---
+
+## 2026-01-22 19:47 UTC - US-016
+- Implemented cosmetic catalog and ownership system with GET /cosmetics/catalog and GET /cosmetics/owned endpoints
+- Added SQL queries for catalog (GetCosmeticCatalog) and player-owned cosmetics (GetPlayerCosmetics)
+- Added auth service methods, handlers, routes, and integration tests
+- Files changed: cosmetic_items.sql, player_cosmetics.sql, generated Go models, auth.go, account.go, server.go, account_test.go, auth_test.go, prd.json
+- **Learnings for future iterations:**
+  - SQLite CHECK constraints can be used for enumerated types (slot, rarity, unlocked_via)
+  - JOIN queries with sqlc require explicit column selection; use LEFT JOIN for exclusion logic
+  - New endpoints follow pattern: add SQL query, generate models, add service method, add handler, register route, write tests
+  - Test database setup must include all required tables; added cosmetic_items and player_cosmetics to setupTestDB
+---

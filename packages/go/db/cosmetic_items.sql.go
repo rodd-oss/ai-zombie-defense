@@ -9,6 +9,45 @@ import (
 	"context"
 )
 
+const getCosmeticCatalog = `-- name: GetCosmeticCatalog :many
+SELECT cosmetic_id, name, description, slot, category, rarity, unlock_level, data_cost, is_prestige_only, created_at FROM cosmetic_items
+ORDER BY cosmetic_id
+`
+
+func (q *Queries) GetCosmeticCatalog(ctx context.Context, db DBTX) ([]*CosmeticItem, error) {
+	rows, err := db.QueryContext(ctx, getCosmeticCatalog)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*CosmeticItem{}
+	for rows.Next() {
+		var i CosmeticItem
+		if err := rows.Scan(
+			&i.CosmeticID,
+			&i.Name,
+			&i.Description,
+			&i.Slot,
+			&i.Category,
+			&i.Rarity,
+			&i.UnlockLevel,
+			&i.DataCost,
+			&i.IsPrestigeOnly,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrestigeCosmetics = `-- name: GetPrestigeCosmetics :many
 SELECT ci.cosmetic_id, ci.name, ci.description, ci.slot, ci.category, ci.rarity, ci.unlock_level, ci.data_cost, ci.is_prestige_only, ci.created_at FROM cosmetic_items ci
 LEFT JOIN player_cosmetics pc ON ci.cosmetic_id = pc.cosmetic_id AND pc.player_id = ?1

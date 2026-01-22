@@ -230,8 +230,8 @@
         "Tests pass"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented currency transactions table migration, added transaction logging via AddDataCurrencyWithTransaction method, added GET /progression/currency endpoint with JWT middleware protection. All tests pass."
     },
     {
       "id": "US-016",
@@ -246,8 +246,8 @@
         "Tests pass"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented GET /cosmetics/catalog and GET /cosmetics/owned endpoints with JWT middleware protection. Added SQL queries for catalog and player-owned cosmetics, generated Go models, added auth service methods, handlers, routes, and tests."
     },
     {
       "id": "US-017",

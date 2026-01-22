@@ -109,3 +109,8 @@ sql:
             go_type:
               import: "ai-zombie-defense/db/types"
               type: "Timestamp"
+          - column: "currency_transactions.created_at"
+            go_type:
+              import: "ai-zombie-defense/db/types"
+              type: "Timestamp"
+

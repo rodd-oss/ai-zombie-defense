@@ -1,6 +1,9 @@
 -- name: GetPlayerProgression :one
 SELECT * FROM player_progression WHERE player_id = ?;
 
+-- name: GetDataCurrency :one
+SELECT data_currency FROM player_progression WHERE player_id = ?;
+
 -- name: CreatePlayerProgression :exec
 INSERT INTO player_progression (player_id) VALUES (?);
 
@@ -28,6 +31,12 @@ WHERE player_id = ?;
 -- name: AddDataCurrency :exec
 UPDATE player_progression
 SET data_currency = data_currency + ?,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE player_id = ?;
+
+-- name: SetDataCurrency :exec
+UPDATE player_progression
+SET data_currency = ?,
     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
 WHERE player_id = ?;
 

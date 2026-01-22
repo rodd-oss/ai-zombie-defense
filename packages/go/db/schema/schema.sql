@@ -10,7 +10,7 @@ CREATE TABLE players (
     last_login_at TEXT,
     is_banned INTEGER NOT NULL DEFAULT 0,
     banned_reason TEXT,
-    banned_until TEXT
+banned_until TEXT
 );
 
 CREATE TABLE sessions (
@@ -23,6 +23,23 @@ CREATE TABLE sessions (
     user_agent TEXT,
     FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_sessions_player_id ON sessions (player_id);
+
+
+CREATE TABLE currency_transactions (
+    transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('match_reward', 'purchase', 'prestige_reward', 'admin_grant', 'refund', 'other')),
+    reference_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_currency_transactions_player_id ON currency_transactions (player_id);
+CREATE INDEX idx_currency_transactions_created_at ON currency_transactions (created_at);
 
 CREATE TABLE player_progression (
     player_id INTEGER PRIMARY KEY,

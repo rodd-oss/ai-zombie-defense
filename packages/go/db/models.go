@@ -21,6 +21,16 @@ type CosmeticItem struct {
 	CreatedAt      types.Timestamp `json:"created_at"`
 }
 
+type CurrencyTransaction struct {
+	TransactionID   int64           `json:"transaction_id"`
+	PlayerID        int64           `json:"player_id"`
+	Amount          int64           `json:"amount"`
+	BalanceAfter    int64           `json:"balance_after"`
+	TransactionType string          `json:"transaction_type"`
+	ReferenceID     *int64          `json:"reference_id"`
+	CreatedAt       types.Timestamp `json:"created_at"`
+}
+
 type Friend struct {
 	PlayerID  int64           `json:"player_id"`
 	FriendID  int64           `json:"friend_id"`

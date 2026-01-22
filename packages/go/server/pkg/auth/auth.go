@@ -386,6 +386,24 @@ func (s *Service) GetPlayerProgression(ctx context.Context, playerID int64) (*db
 	return progression, nil
 }
 
+// GetCosmeticCatalog returns all cosmetic items available in the catalog.
+func (s *Service) GetCosmeticCatalog(ctx context.Context) ([]*db.CosmeticItem, error) {
+	items, err := s.queries.GetCosmeticCatalog(ctx, s.dbConn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cosmetic catalog: %w", err)
+	}
+	return items, nil
+}
+
+// GetPlayerCosmetics returns cosmetic items owned by the player.
+func (s *Service) GetPlayerCosmetics(ctx context.Context, playerID int64) ([]*db.GetPlayerCosmeticsRow, error) {
+	items, err := s.queries.GetPlayerCosmetics(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get player cosmetics: %w", err)
+	}
+	return items, nil
+}
+
 // UpsertPlayerSettings creates or updates player settings.
 func (s *Service) UpsertPlayerSettings(ctx context.Context, params *db.UpsertPlayerSettingsParams) error {
 	err := s.queries.UpsertPlayerSettings(ctx, s.dbConn, params)
@@ -517,6 +535,74 @@ func (s *Service) AddMatchRewards(ctx context.Context, playerID int64, kills, de
 			// Continue without returning error
 		}
 	}
+	return nil
+}
+
+// AddDataCurrencyWithTransaction adds data currency to a player and logs a transaction.
+func (s *Service) AddDataCurrencyWithTransaction(ctx context.Context, playerID int64, amount int64, transactionType string, referenceID *int64) error {
+	if amount == 0 {
+		return nil
+	}
+	// Try to get *sql.DB for transaction support
+	var dbTx db.DBTX
+	var tx *sql.Tx
+	var err error
+
+	if db, ok := s.dbConn.(*sql.DB); ok {
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		dbTx = tx
+	} else {
+		// Already a transaction or other DBTX; use directly without transaction
+		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
+		dbTx = s.dbConn
+	}
+
+	// Get current balance
+	balance, err := s.queries.GetDataCurrency(ctx, dbTx, playerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Create progression row
+			if err := s.queries.CreatePlayerProgression(ctx, dbTx, playerID); err != nil {
+				return fmt.Errorf("failed to create player progression: %w", err)
+			}
+			balance = 0
+		} else {
+			return fmt.Errorf("failed to get data currency: %w", err)
+		}
+	}
+	newBalance := balance + amount
+	// Update balance
+	if err := s.queries.SetDataCurrency(ctx, dbTx, &db.SetDataCurrencyParams{
+		DataCurrency: newBalance,
+		PlayerID:     playerID,
+	}); err != nil {
+		return fmt.Errorf("failed to set data currency: %w", err)
+	}
+	// Log transaction
+	if err := s.queries.CreateCurrencyTransaction(ctx, dbTx, &db.CreateCurrencyTransactionParams{
+		PlayerID:        playerID,
+		Amount:          amount,
+		BalanceAfter:    newBalance,
+		TransactionType: transactionType,
+		ReferenceID:     referenceID,
+	}); err != nil {
+		return fmt.Errorf("failed to create currency transaction: %w", err)
+	}
+	// Commit transaction if we started one
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+	}
+	s.logger.Debug("Data currency transaction completed",
+		zap.Int64("player_id", playerID),
+		zap.Int64("amount", amount),
+		zap.Int64("new_balance", newBalance),
+		zap.String("transaction_type", transactionType))
 	return nil
 }
 

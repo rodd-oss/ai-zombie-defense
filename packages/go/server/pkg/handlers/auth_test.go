@@ -113,6 +113,39 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(createProgressionSQL); err != nil {
 		t.Fatalf("Failed to create player_progression table: %v", err)
 	}
+	// Create cosmetic_items table
+	createCosmeticItemsSQL := `CREATE TABLE cosmetic_items (
+		cosmetic_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		slot TEXT NOT NULL CHECK (slot IN ('character_skin', 'weapon_skin', 'emote', 'taunt', 'badge', 'title', 'particle_effect', 'other')),
+		category TEXT,
+		rarity TEXT NOT NULL CHECK (rarity IN ('common', 'uncommon', 'rare', 'epic', 'legendary')),
+		unlock_level INTEGER NOT NULL DEFAULT 1,
+		data_cost INTEGER NOT NULL DEFAULT 0,
+		is_prestige_only INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+	);`
+	if _, err := db.Exec(createCosmeticItemsSQL); err != nil {
+		t.Fatalf("Failed to create cosmetic_items table: %v", err)
+	}
+	// Create player_cosmetics table
+	createPlayerCosmeticsSQL := `CREATE TABLE player_cosmetics (
+		player_id INTEGER NOT NULL,
+		cosmetic_id INTEGER NOT NULL,
+		unlocked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		unlocked_via TEXT NOT NULL CHECK (unlocked_via IN ('level_up', 'purchase', 'loot_drop', 'prestige')),
+		PRIMARY KEY (player_id, cosmetic_id),
+		FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE,
+		FOREIGN KEY (cosmetic_id) REFERENCES cosmetic_items (cosmetic_id) ON DELETE CASCADE
+	);`
+	if _, err := db.Exec(createPlayerCosmeticsSQL); err != nil {
+		t.Fatalf("Failed to create player_cosmetics table: %v", err)
+	}
+	// Create index on cosmetic_id for faster lookups
+	if _, err := db.Exec(`CREATE INDEX idx_player_cosmetics_cosmetic_id ON player_cosmetics (cosmetic_id)`); err != nil {
+		t.Fatalf("Failed to create player_cosmetics index: %v", err)
+	}
 	return db
 }
 

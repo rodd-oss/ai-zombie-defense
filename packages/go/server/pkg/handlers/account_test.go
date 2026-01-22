@@ -479,3 +479,114 @@ func TestAccountHandlers_GetProgression(t *testing.T) {
 		}
 	})
 }
+
+func TestAccountHandlers_GetCosmeticCatalog(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	// Insert a cosmetic item
+	_, err := db.Exec(`INSERT INTO cosmetic_items (name, description, slot, category, rarity, unlock_level, data_cost, is_prestige_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"Test Skin", "A test cosmetic", "character_skin", "skins", "common", 1, 100, 0)
+	if err != nil {
+		t.Fatalf("Failed to insert cosmetic item: %v", err)
+	}
+
+	// Create a player and token
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Test successful catalog retrieval
+	req := httptest.NewRequest(http.MethodGet, "/cosmetics/catalog", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var items []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("Expected 1 cosmetic item, got %d", len(items))
+	}
+	// Validate fields
+	item := items[0]
+	if item["name"] != "Test Skin" {
+		t.Errorf("Expected name Test Skin, got %v", item["name"])
+	}
+	if item["rarity"] != "common" {
+		t.Errorf("Expected rarity common, got %v", item["rarity"])
+	}
+	// Test without authorization header
+	req = httptest.NewRequest(http.MethodGet, "/cosmetics/catalog", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 for missing token, got %d", resp.StatusCode)
+	}
+}
+
+func TestAccountHandlers_GetPlayerCosmetics(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	// Insert a cosmetic item
+	res, err := db.Exec(`INSERT INTO cosmetic_items (name, description, slot, category, rarity, unlock_level, data_cost, is_prestige_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"Test Skin", "A test cosmetic", "character_skin", "skins", "common", 1, 100, 0)
+	if err != nil {
+		t.Fatalf("Failed to insert cosmetic item: %v", err)
+	}
+	cosmeticID, _ := res.LastInsertId()
+
+	// Create a player and token
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Grant cosmetic to player
+	_, err = db.Exec(`INSERT INTO player_cosmetics (player_id, cosmetic_id, unlocked_via) VALUES (?, ?, ?)`,
+		playerID, cosmeticID, "purchase")
+	if err != nil {
+		t.Fatalf("Failed to grant cosmetic: %v", err)
+	}
+
+	// Test successful owned cosmetics retrieval
+	req := httptest.NewRequest(http.MethodGet, "/cosmetics/owned", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var items []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("Expected 1 owned cosmetic, got %d", len(items))
+	}
+	item := items[0]
+	if item["name"] != "Test Skin" {
+		t.Errorf("Expected name Test Skin, got %v", item["name"])
+	}
+	if item["unlocked_via"] != "purchase" {
+		t.Errorf("Expected unlocked_via purchase, got %v", item["unlocked_via"])
+	}
+	// Test without authorization header
+	req = httptest.NewRequest(http.MethodGet, "/cosmetics/owned", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 for missing token, got %d", resp.StatusCode)
+	}
+}

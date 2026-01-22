@@ -65,4 +65,17 @@
 - Extracts player ID from token subject claim and stores in `c.Locals("player_id")`
 - Helper functions `middleware.GetPlayerID(c)` and `middleware.GetClaims(c)` retrieve data
 - Returns 401 for missing/invalid tokens with JSON error response
-- Always use Bearer token format: `Authorization: Bearer <token>`
+ - Always use Bearer token format: `Authorization: Bearer <token>`
+
+## Adding New Endpoints
+- Pattern for adding new endpoints:
+  1. Add SQL queries in `db/queries/` (`.sql` files)
+  2. Run `sqlc generate` in `packages/go/db/` to update Go models
+  3. Add service methods in `pkg/auth/auth.go`
+  4. Add handlers in `pkg/handlers/account.go` (or create new handler file)
+  5. Register routes in `pkg/server/server.go` with appropriate middleware
+  6. Write integration tests in `pkg/handlers/account_test.go` (or separate test file)
+  7. Ensure test database includes required tables (update `setupTestDB` in `auth_test.go`)
+  8. Run `go mod tidy` in affected modules
+  9. Run `bun task check` to verify linting and type checks
+  10. Run `go test ./...` to ensure all tests pass
