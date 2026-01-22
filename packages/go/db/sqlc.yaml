@@ -1,0 +1,118 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "schema/schema.sql"
+    queries: "queries"
+    gen:
+      go:
+        package: "db"
+        out: "generated"
+        sql_package: "database/sql"
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: false
+        emit_exact_table_names: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        emit_result_struct_pointers: true
+        emit_params_struct_pointers: true
+        emit_methods_with_db_argument: true
+        emit_enum_valid_method: false
+        emit_all_enum_values: false
+        json_tags_case_style: "snake"
+        output_db_file_name: "db.go"
+        output_models_file_name: "models.go"
+        output_querier_file_name: "querier.go"
+        rename:
+          player_id: "PlayerID"
+          session_id: "SessionID"
+          created_at: "CreatedAt"
+          updated_at: "UpdatedAt"
+        overrides:
+          - column: "players.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "players.last_login_at"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+            nullable: true
+          - column: "players.banned_until"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+            nullable: true
+          - column: "sessions.expires_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "sessions.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "player_progression.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "player_settings.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "player_settings.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "cosmetic_items.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "player_cosmetics.unlocked_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "loadouts.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "loadouts.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "servers.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "matches.start_time"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "matches.end_time"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+            nullable: true
+          - column: "leaderboard_entries.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "friends.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "friends.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "server_favorites.added_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "loot_tables.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+

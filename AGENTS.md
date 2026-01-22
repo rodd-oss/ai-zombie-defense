@@ -89,6 +89,7 @@ The repository uses Husky with lint-staged to run checks on staged files before 
 - **Error Handling**: Return errors as the last return value. Use `if err != nil` pattern.
 - **Imports**: Group standard library, third-party, and internal imports with blank lines.
 - **Testing**: Use `testing` package. Table-driven tests preferred for multiple test cases.
+- **Database Models**: Use sqlc for type-safe SQL queries. Timestamp columns are stored as TEXT with ISO 8601 format; map to `time.Time` using column-specific overrides in sqlc.yaml. Nullable timestamps require `pointer: true` in the override.
 
 ## Tooling Configuration
 

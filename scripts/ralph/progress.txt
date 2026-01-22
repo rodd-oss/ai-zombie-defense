@@ -13,3 +13,13 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Foreign key indexes are not automatically created; need explicit CREATE INDEX
   - Naming convention: YYYYMMDDHHMMSS_table_name.sql for goose migrations
 ---
+## 2026-01-22 14:21 UTC - US-002
+- Set up sqlc configuration and generated Go models for all database tables
+- Files changed: packages/go/db/sqlc.yaml, packages/go/db/schema/schema.sql, packages/go/db/queries/player.sql, packages/go/db/generated/*, packages/go/db/go.mod, packages/go/db/go.sum, go.work
+- **Learnings for future iterations:**
+  - SQLite does not support ENUM types; use CHECK constraints with IN list
+  - Timestamp columns are TEXT with ISO 8601 format; use column-specific overrides in sqlc.yaml to map to time.Time
+  - Nullable timestamp columns need `pointer: true` in sqlc overrides to generate *time.Time
+  - The go.work file must include module paths for go vet to work; currently only includes packages/go/db
+  - Use sqlc generate with at least one query file referencing tables; placeholder SELECT 1 is insufficient
+---

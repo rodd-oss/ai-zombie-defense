@@ -48,9 +48,9 @@
     "python:check": "--concurrent python:lint python:format:check",
     "python:fix": "python:lint:fix python:format:write",
     "python:test": "echo 'No Python tests configured'",
-    "go:lint": "go vet ./...",
-    "go:check": "go vet ./...",
-    "go:test": "go test ./..."
+    "go:lint": "cd packages/go/db && go vet ./...",
+    "go:check": "cd packages/go/db && go vet ./...",
+    "go:test": "cd packages/go/db && go test ./..."
   },
   "lint-staged": {
     "**/*.{js,mjs,cjs,ts,mts,cts,vue,json,jsonc,json5,md,css}": [
