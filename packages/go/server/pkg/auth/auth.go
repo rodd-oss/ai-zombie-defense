@@ -21,20 +21,22 @@ import (
 )
 
 var (
-	ErrInvalidCredentials   = errors.New("invalid credentials")
-	ErrPlayerBanned         = errors.New("player is banned")
-	ErrDuplicateUsername    = errors.New("username already exists")
-	ErrDuplicateEmail       = errors.New("email already exists")
-	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
-	ErrSessionNotFound      = errors.New("session not found")
-	ErrCosmeticNotFound     = errors.New("cosmetic not found")
-	ErrCosmeticNotOwned     = errors.New("cosmetic not owned")
-	ErrLoadoutNotFound      = errors.New("loadout not found")
-	ErrMatchNotFound        = errors.New("match not found")
-	ErrServerNotFound       = errors.New("server not found")
-	ErrJoinTokenInvalid     = errors.New("join token invalid")
-	ErrJoinTokenExpired     = errors.New("join token expired")
-	ErrJoinTokenAlreadyUsed = errors.New("join token already used")
+	ErrInvalidCredentials    = errors.New("invalid credentials")
+	ErrPlayerBanned          = errors.New("player is banned")
+	ErrDuplicateUsername     = errors.New("username already exists")
+	ErrDuplicateEmail        = errors.New("email already exists")
+	ErrInvalidRefreshToken   = errors.New("invalid refresh token")
+	ErrSessionNotFound       = errors.New("session not found")
+	ErrCosmeticNotFound      = errors.New("cosmetic not found")
+	ErrCosmeticNotOwned      = errors.New("cosmetic not owned")
+	ErrLoadoutNotFound       = errors.New("loadout not found")
+	ErrMatchNotFound         = errors.New("match not found")
+	ErrServerNotFound        = errors.New("server not found")
+	ErrJoinTokenInvalid      = errors.New("join token invalid")
+	ErrJoinTokenExpired      = errors.New("join token expired")
+	ErrJoinTokenAlreadyUsed  = errors.New("join token already used")
+	ErrFavoriteAlreadyExists = errors.New("server already favorited")
+	ErrFavoriteNotFound      = errors.New("favorite not found")
 )
 
 type Service struct {
@@ -1000,4 +1002,70 @@ func (s *Service) MarkTokenUsed(ctx context.Context, token string) error {
 	}
 	s.logger.Debug("Join token marked as used", zap.String("token", token))
 	return nil
+}
+
+// AddFavorite adds a server to the player's favorites.
+func (s *Service) AddFavorite(ctx context.Context, playerID int64, serverID int64, note *string) error {
+	// Check if favorite already exists
+	existing, err := s.queries.GetFavorite(ctx, s.dbConn, &db.GetFavoriteParams{
+		PlayerID: playerID,
+		ServerID: serverID,
+	})
+	if err == nil && existing != nil {
+		return ErrFavoriteAlreadyExists
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check existing favorite: %w", err)
+	}
+	// Insert favorite
+	params := &db.AddFavoriteParams{
+		PlayerID: playerID,
+		ServerID: serverID,
+		Note:     note,
+	}
+	err = s.queries.AddFavorite(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to add favorite: %w", err)
+	}
+	s.logger.Debug("Favorite added", zap.Int64("player_id", playerID), zap.Int64("server_id", serverID))
+	return nil
+}
+
+// RemoveFavorite removes a server from the player's favorites.
+func (s *Service) RemoveFavorite(ctx context.Context, playerID int64, serverID int64) error {
+	params := &db.RemoveFavoriteParams{
+		PlayerID: playerID,
+		ServerID: serverID,
+	}
+	err := s.queries.RemoveFavorite(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to remove favorite: %w", err)
+	}
+	s.logger.Debug("Favorite removed", zap.Int64("player_id", playerID), zap.Int64("server_id", serverID))
+	return nil
+}
+
+// GetFavorite retrieves a favorite entry.
+func (s *Service) GetFavorite(ctx context.Context, playerID int64, serverID int64) (*db.ServerFavorite, error) {
+	params := &db.GetFavoriteParams{
+		PlayerID: playerID,
+		ServerID: serverID,
+	}
+	fav, err := s.queries.GetFavorite(ctx, s.dbConn, params)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFavoriteNotFound
+		}
+		return nil, fmt.Errorf("failed to get favorite: %w", err)
+	}
+	return fav, nil
+}
+
+// ListPlayerFavorites returns the player's favorite servers with server details.
+func (s *Service) ListPlayerFavorites(ctx context.Context, playerID int64) ([]*db.ListPlayerFavoritesRow, error) {
+	favorites, err := s.queries.ListPlayerFavorites(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list player favorites: %w", err)
+	}
+	return favorites, nil
 }

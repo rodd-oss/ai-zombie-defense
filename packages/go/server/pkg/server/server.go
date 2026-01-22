@@ -103,6 +103,13 @@ func (s *Server) registerRoutes() {
 		serversGroup.Put("/:id/heartbeat", middleware.ServerAuthMiddleware(authService, s.logger), serverHandlers.UpdateHeartbeat)
 		serversGroup.Post("/:id/join", middleware.AuthMiddleware(authService, s.logger), serverHandlers.GenerateJoinToken)
 		serversGroup.Post("/join-token/:token/validate", middleware.ServerAuthMiddleware(authService, s.logger), serverHandlers.ValidateJoinToken)
+
+		// Favorites routes (protected by JWT middleware)
+		favoriteHandlers := handlers.NewFavoriteHandlers(authService, s.logger)
+		favoritesGroup := s.app.Group("/favorites", middleware.AuthMiddleware(authService, s.logger))
+		favoritesGroup.Post("/", favoriteHandlers.AddFavorite)
+		favoritesGroup.Get("/", favoriteHandlers.ListFavorites)
+		favoritesGroup.Delete("/:id", favoriteHandlers.RemoveFavorite)
 	}
 }
 

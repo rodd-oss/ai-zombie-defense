@@ -270,3 +270,12 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Server authentication middleware required for token validation endpoint
   - Token generation uses crypto/rand hex encoding for secure random strings
 ---
+## 2026-01-22 22:13 UTC - US-023
+- Implemented server favorites management with POST /favorites, GET /favorites, DELETE /favorites/:id endpoints, protected by JWT middleware
+- Files changed: packages/go/db/queries/server_favorites.sql, packages/go/db/generated/*, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/favorites.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/auth_test.go, packages/go/server/pkg/handlers/favorites_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Server favorites table already existed in migrations; only needed to add SQL queries and integrate
+  - Duplicate favorite handling: check existing before insert to provide user-friendly error (ErrFavoriteAlreadyExists)
+  - Use strconv for URL parameter conversion in tests; avoid string(rune(id)) which produces invalid characters
+  - Test helper functions are in handlers_test package; new test files must use same package
+---
