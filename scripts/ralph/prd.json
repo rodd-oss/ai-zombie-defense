@@ -182,8 +182,8 @@
         "Tests pass"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented GET /account/settings and PUT /account/settings endpoints with JWT middleware protection. Settings stored in player_settings table with default values when not present. All tests pass."
     },
     {
       "id": "US-013",

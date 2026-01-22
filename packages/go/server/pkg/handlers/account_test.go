@@ -221,3 +221,189 @@ func TestAccountHandlers_UpdateProfile(t *testing.T) {
 		t.Errorf("Expected status 400 for invalid JSON, got %d", resp.StatusCode)
 	}
 }
+
+func TestAccountHandlers_GetSettings(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	// Create a player
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Test GET settings when no settings exist (should return defaults)
+	req := httptest.NewRequest(http.MethodGet, "/account/settings", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if result["player_id"] != float64(playerID) {
+		t.Errorf("Expected player_id %d, got %v", playerID, result["player_id"])
+	}
+	// Check defaults
+	if result["color_blind_mode"] != float64(0) {
+		t.Errorf("Expected color_blind_mode 0, got %v", result["color_blind_mode"])
+	}
+	if result["subtitles_enabled"] != float64(0) {
+		t.Errorf("Expected subtitles_enabled 0, got %v", result["subtitles_enabled"])
+	}
+	// nullable fields should be null or missing
+	if val, ok := result["key_bindings"]; ok && val != nil {
+		t.Errorf("Expected key_bindings null or missing, got %v", val)
+	}
+	if val, ok := result["mouse_sensitivity"]; ok && val != nil {
+		t.Errorf("Expected mouse_sensitivity null or missing, got %v", val)
+	}
+	if val, ok := result["ui_scale"]; ok && val != nil {
+		t.Errorf("Expected ui_scale null or missing, got %v", val)
+	}
+	if _, ok := result["created_at"]; !ok {
+		t.Error("Response missing created_at")
+	}
+	if _, ok := result["updated_at"]; !ok {
+		t.Error("Response missing updated_at")
+	}
+}
+
+func TestAccountHandlers_UpdateSettings(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Test successful settings update
+	updateBody := map[string]interface{}{
+		"key_bindings":      "WASD",
+		"mouse_sensitivity": 1.5,
+		"ui_scale":          1.0,
+		"color_blind_mode":  1,
+		"subtitles_enabled": 1,
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest(http.MethodPut, "/account/settings", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if msg, ok := result["message"]; !ok || msg != "settings updated successfully" {
+		t.Errorf("Expected success message, got %v", result)
+	}
+
+	// Verify changes in database
+	var keyBindings sql.NullString
+	var mouseSensitivity sql.NullFloat64
+	var uiScale sql.NullFloat64
+	var colorBlindMode, subtitlesEnabled int64
+	err = db.QueryRow(`SELECT key_bindings, mouse_sensitivity, ui_scale, color_blind_mode, subtitles_enabled FROM player_settings WHERE player_id = ?`, playerID).Scan(&keyBindings, &mouseSensitivity, &uiScale, &colorBlindMode, &subtitlesEnabled)
+	if err != nil {
+		t.Fatalf("Failed to query updated settings: %v", err)
+	}
+	if !keyBindings.Valid || keyBindings.String != "WASD" {
+		t.Errorf("Expected key_bindings WASD, got %v", keyBindings)
+	}
+	if !mouseSensitivity.Valid || mouseSensitivity.Float64 != 1.5 {
+		t.Errorf("Expected mouse_sensitivity 1.5, got %v", mouseSensitivity)
+	}
+	if !uiScale.Valid || uiScale.Float64 != 1.0 {
+		t.Errorf("Expected ui_scale 1.0, got %v", uiScale)
+	}
+	if colorBlindMode != 1 {
+		t.Errorf("Expected color_blind_mode 1, got %d", colorBlindMode)
+	}
+	if subtitlesEnabled != 1 {
+		t.Errorf("Expected subtitles_enabled 1, got %d", subtitlesEnabled)
+	}
+
+	// Test partial update with null values
+	updateBody2 := map[string]interface{}{
+		"key_bindings":      nil,
+		"mouse_sensitivity": nil,
+		"ui_scale":          nil,
+		"color_blind_mode":  0,
+		"subtitles_enabled": 0,
+	}
+	body, _ = json.Marshal(updateBody2)
+	req = httptest.NewRequest(http.MethodPut, "/account/settings", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	// Verify null values
+	err = db.QueryRow(`SELECT key_bindings, mouse_sensitivity, ui_scale, color_blind_mode, subtitles_enabled FROM player_settings WHERE player_id = ?`, playerID).Scan(&keyBindings, &mouseSensitivity, &uiScale, &colorBlindMode, &subtitlesEnabled)
+	if err != nil {
+		t.Fatalf("Failed to query updated settings: %v", err)
+	}
+	if keyBindings.Valid {
+		t.Errorf("Expected key_bindings null, got %v", keyBindings)
+	}
+	if mouseSensitivity.Valid {
+		t.Errorf("Expected mouse_sensitivity null, got %v", mouseSensitivity)
+	}
+	if uiScale.Valid {
+		t.Errorf("Expected ui_scale null, got %v", uiScale)
+	}
+	if colorBlindMode != 0 {
+		t.Errorf("Expected color_blind_mode 0, got %d", colorBlindMode)
+	}
+	if subtitlesEnabled != 0 {
+		t.Errorf("Expected subtitles_enabled 0, got %d", subtitlesEnabled)
+	}
+
+	// Test missing authorization header
+	req = httptest.NewRequest(http.MethodPut, "/account/settings", bytes.NewReader(body))
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 for missing token, got %d", resp.StatusCode)
+	}
+
+	// Test invalid token
+	req = httptest.NewRequest(http.MethodPut, "/account/settings", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer invalid")
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 for invalid token, got %d", resp.StatusCode)
+	}
+
+	// Test invalid request body
+	req = httptest.NewRequest(http.MethodPut, "/account/settings", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for invalid JSON, got %d", resp.StatusCode)
+	}
+}

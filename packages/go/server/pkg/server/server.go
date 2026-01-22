@@ -74,6 +74,8 @@ func (s *Server) registerRoutes() {
 		accountGroup := s.app.Group("/account", middleware.AuthMiddleware(authService, s.logger))
 		accountGroup.Get("/profile", accountHandlers.GetProfile)
 		accountGroup.Put("/profile", accountHandlers.UpdateProfile)
+		accountGroup.Get("/settings", accountHandlers.GetSettings)
+		accountGroup.Put("/settings", accountHandlers.UpdateSettings)
 	}
 }
 

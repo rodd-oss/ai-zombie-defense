@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-zombie-defense/db"
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/middleware"
 
@@ -32,6 +33,25 @@ type ProfileResponse struct {
 type UpdateProfileRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
+}
+
+type SettingsResponse struct {
+	PlayerID         int64    `json:"player_id"`
+	KeyBindings      *string  `json:"key_bindings,omitempty"`
+	MouseSensitivity *float64 `json:"mouse_sensitivity,omitempty"`
+	UiScale          *float64 `json:"ui_scale,omitempty"`
+	ColorBlindMode   int64    `json:"color_blind_mode"`
+	SubtitlesEnabled int64    `json:"subtitles_enabled"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
+}
+
+type UpdateSettingsRequest struct {
+	KeyBindings      *string  `json:"key_bindings"`
+	MouseSensitivity *float64 `json:"mouse_sensitivity"`
+	UiScale          *float64 `json:"ui_scale"`
+	ColorBlindMode   int64    `json:"color_blind_mode"`
+	SubtitlesEnabled int64    `json:"subtitles_enabled"`
 }
 
 // GetProfile handles GET /account/profile
@@ -116,5 +136,74 @@ func (h *AccountHandlers) UpdateProfile(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "profile updated successfully",
+	})
+}
+
+// GetSettings handles GET /account/settings
+func (h *AccountHandlers) GetSettings(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	ctx := c.Context()
+	settings, err := h.service.GetPlayerSettings(ctx, playerID)
+	if err != nil {
+		h.logger.Error("failed to get player settings", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	// Convert timestamps to ISO 8601 strings
+	createdAt := settings.CreatedAt.Time.Format("2006-01-02T15:04:05Z")
+	updatedAt := settings.UpdatedAt.Time.Format("2006-01-02T15:04:05Z")
+	resp := SettingsResponse{
+		PlayerID:         settings.PlayerID,
+		KeyBindings:      settings.KeyBindings,
+		MouseSensitivity: settings.MouseSensitivity,
+		UiScale:          settings.UiScale,
+		ColorBlindMode:   settings.ColorBlindMode,
+		SubtitlesEnabled: settings.SubtitlesEnabled,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+	}
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// UpdateSettings handles PUT /account/settings
+func (h *AccountHandlers) UpdateSettings(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	var req UpdateSettingsRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+	params := &db.UpsertPlayerSettingsParams{
+		PlayerID:         playerID,
+		KeyBindings:      req.KeyBindings,
+		MouseSensitivity: req.MouseSensitivity,
+		UiScale:          req.UiScale,
+		ColorBlindMode:   req.ColorBlindMode,
+		SubtitlesEnabled: req.SubtitlesEnabled,
+	}
+	ctx := c.Context()
+	err := h.service.UpsertPlayerSettings(ctx, params)
+	if err != nil {
+		h.logger.Error("failed to upsert player settings", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "settings updated successfully",
 	})
 }

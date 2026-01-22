@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -315,6 +316,37 @@ func (s *Service) UpdatePlayerPassword(ctx context.Context, playerID int64, newP
 	err = s.queries.UpdatePlayerPassword(ctx, s.dbConn, params)
 	if err != nil {
 		return fmt.Errorf("failed to update player password: %w", err)
+	}
+	return nil
+}
+
+// GetPlayerSettings retrieves player settings or returns defaults if not found.
+func (s *Service) GetPlayerSettings(ctx context.Context, playerID int64) (*db.PlayerSetting, error) {
+	settings, err := s.queries.GetPlayerSettings(ctx, s.dbConn, playerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Return default settings
+			return &db.PlayerSetting{
+				PlayerID:         playerID,
+				KeyBindings:      nil,
+				MouseSensitivity: nil,
+				UiScale:          nil,
+				ColorBlindMode:   0,
+				SubtitlesEnabled: 0,
+				CreatedAt:        types.Timestamp{},
+				UpdatedAt:        types.Timestamp{},
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to get player settings: %w", err)
+	}
+	return settings, nil
+}
+
+// UpsertPlayerSettings creates or updates player settings.
+func (s *Service) UpsertPlayerSettings(ctx context.Context, params *db.UpsertPlayerSettingsParams) error {
+	err := s.queries.UpsertPlayerSettings(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to upsert player settings: %w", err)
 	}
 	return nil
 }

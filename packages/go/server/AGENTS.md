@@ -53,6 +53,7 @@
 - Include a random JWT ID (jti) claim in refresh tokens to ensure uniqueness
 - Password hashing uses bcrypt with default cost
 - Handle duplicate token errors gracefully (retry generation if collision occurs)
+- Handle duplicate username/email constraints by checking SQLite error strings; return user-friendly conflict errors
 - Validate refresh tokens against both JWT signature and session store
 - Refresh endpoint rotates tokens (deletes old session, creates new one)
 - Logout endpoint deletes the session by token

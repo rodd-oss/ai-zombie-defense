@@ -17,6 +17,9 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Fiber's Shutdown method is ShutdownWithContext(ctx); call with timeout context
 - Server configuration uses SERVER_HOST and SERVER_PORT environment variables (default 0.0.0.0:8080)
 - Test HTTP servers using random free ports via net.Listen and zaptest.Logger
+- Handle duplicate SQLite constraints by checking error strings; translate to user-friendly conflict errors
+- Use middleware.GetPlayerID(c) to retrieve authenticated player ID in protected handlers
+- Nullable columns in SQLite generate pointer types in sqlc (*string, *float64). Use sql.NullX for custom null handling if needed.
 
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
@@ -129,4 +132,35 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Fiber middleware pattern expects a function returning fiber.Handler
   - Use c.Locals to pass data to downstream handlers; keys should be constants
   - Token validation uses auth.Service.ValidateToken; subject claim contains player ID as string
+---
+
+## 2026-01-22 15:30 UTC - US-011
+- Implemented account profile management API with GET /account/profile and PUT /account/profile endpoints
+- Protected by JWT middleware with duplicate username/email validation
+- Added SQL queries for updating player profile and password
+- Created auth service methods for profile management
+- Added comprehensive tests for both endpoints
+- Files changed: packages/go/db/queries/player.sql, packages/go/db/player.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/account.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/account_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Use existing helper functions in test files to avoid duplication
+  - SQLite unique constraint errors need to be caught and translated to user-friendly errors
+  - Profile endpoints must exclude sensitive fields like password_hash
+  - JWT middleware automatically extracts player ID; use middleware.GetPlayerID in handlers
+  - Use server.New for full integration tests instead of manually building routes
+---
+
+## 2026-01-22 18:05 UTC - US-012
+- Implemented player settings storage and retrieval API with GET /account/settings and PUT /account/settings endpoints
+- Added SQL queries for player_settings table (GetPlayerSettings, UpsertPlayerSettings)
+- Created auth service methods for settings management with default values when no settings exist
+- Added JWT middleware protected routes in server
+- Updated test database setup to include player_settings table
+- Added comprehensive tests for both endpoints covering default values, updates, null handling, and error cases
+- Files changed: packages/go/db/queries/player_settings.sql, packages/go/db/player_settings.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/account.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/auth_test.go, packages/go/server/pkg/handlers/account_test.go
+- **Learnings for future iterations:**
+  - SQLite nullable columns map to Go pointers in sqlc generated models (*string, *float64)
+  - Default settings pattern: return zero-value struct when row not found to avoid extra database writes
+  - Use sqlc's Upsert with ON CONFLICT DO UPDATE for simple create-or-update semantics
+  - Test database setup must include all required tables; update auth_test.go's setupTestDB function when adding new tables
+  - Fiber handler pattern: extract player ID via middleware.GetPlayerID, use service methods, return consistent error responses
 ---
