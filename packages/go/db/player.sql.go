@@ -148,3 +148,32 @@ func (q *Queries) UpdatePlayerLastLogin(ctx context.Context, db DBTX, arg *Updat
 	_, err := db.ExecContext(ctx, updatePlayerLastLogin, arg.LastLoginAt, arg.PlayerID)
 	return err
 }
+
+const updatePlayerPassword = `-- name: UpdatePlayerPassword :exec
+UPDATE players SET password_hash = ? WHERE player_id = ?
+`
+
+type UpdatePlayerPasswordParams struct {
+	PasswordHash string `json:"password_hash"`
+	PlayerID     int64  `json:"player_id"`
+}
+
+func (q *Queries) UpdatePlayerPassword(ctx context.Context, db DBTX, arg *UpdatePlayerPasswordParams) error {
+	_, err := db.ExecContext(ctx, updatePlayerPassword, arg.PasswordHash, arg.PlayerID)
+	return err
+}
+
+const updatePlayerProfile = `-- name: UpdatePlayerProfile :exec
+UPDATE players SET username = ?, email = ? WHERE player_id = ?
+`
+
+type UpdatePlayerProfileParams struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	PlayerID int64  `json:"player_id"`
+}
+
+func (q *Queries) UpdatePlayerProfile(ctx context.Context, db DBTX, arg *UpdatePlayerProfileParams) error {
+	_, err := db.ExecContext(ctx, updatePlayerProfile, arg.Username, arg.Email, arg.PlayerID)
+	return err
+}

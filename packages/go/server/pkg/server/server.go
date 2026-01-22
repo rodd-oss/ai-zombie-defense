@@ -8,6 +8,7 @@ import (
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/config"
 	"ai-zombie-defense/server/pkg/handlers"
+	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	fiberLogger "github.com/gofiber/fiber/v2/middleware/logger"
@@ -67,6 +68,12 @@ func (s *Server) registerRoutes() {
 		authGroup.Post("/register", authHandlers.Register)
 		authGroup.Post("/refresh", authHandlers.Refresh)
 		authGroup.Post("/logout", authHandlers.Logout)
+
+		// Account routes (protected by JWT middleware)
+		accountHandlers := handlers.NewAccountHandlers(authService, s.logger)
+		accountGroup := s.app.Group("/account", middleware.AuthMiddleware(authService, s.logger))
+		accountGroup.Get("/profile", accountHandlers.GetProfile)
+		accountGroup.Put("/profile", accountHandlers.UpdateProfile)
 	}
 }
 

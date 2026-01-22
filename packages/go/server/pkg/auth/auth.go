@@ -273,6 +273,52 @@ func (s *Service) RefreshSession(ctx context.Context, oldToken, ipAddress, userA
 	return playerID, newToken, nil
 }
 
+// GetPlayer retrieves a player by ID.
+func (s *Service) GetPlayer(ctx context.Context, playerID int64) (*db.Player, error) {
+	player, err := s.queries.GetPlayer(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get player: %w", err)
+	}
+	return player, nil
+}
+
+// UpdatePlayerProfile updates a player's username and email.
+func (s *Service) UpdatePlayerProfile(ctx context.Context, playerID int64, username, email string) error {
+	params := &db.UpdatePlayerProfileParams{
+		PlayerID: playerID,
+		Username: username,
+		Email:    email,
+	}
+	err := s.queries.UpdatePlayerProfile(ctx, s.dbConn, params)
+	if err != nil {
+		if s.isDuplicateError(err, "username") {
+			return ErrDuplicateUsername
+		}
+		if s.isDuplicateError(err, "email") {
+			return ErrDuplicateEmail
+		}
+		return fmt.Errorf("failed to update player profile: %w", err)
+	}
+	return nil
+}
+
+// UpdatePlayerPassword updates a player's password.
+func (s *Service) UpdatePlayerPassword(ctx context.Context, playerID int64, newPassword string) error {
+	hash, err := s.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	params := &db.UpdatePlayerPasswordParams{
+		PlayerID:     playerID,
+		PasswordHash: hash,
+	}
+	err = s.queries.UpdatePlayerPassword(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to update player password: %w", err)
+	}
+	return nil
+}
+
 // Config returns the service configuration.
 func (s *Service) Config() config.Config {
 	return s.config

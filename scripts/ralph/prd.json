@@ -166,8 +166,8 @@
         "Tests pass"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented GET and PUT /account/profile endpoints with JWT middleware protection. Includes duplicate username/email validation. All tests pass."
     },
     {
       "id": "US-012",

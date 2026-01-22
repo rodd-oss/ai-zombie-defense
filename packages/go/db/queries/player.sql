@@ -18,3 +18,9 @@ SELECT * FROM players WHERE email = ?;
 
 -- name: DeletePlayer :exec
 DELETE FROM players WHERE player_id = ?;
+
+-- name: UpdatePlayerProfile :exec
+UPDATE players SET username = ?, email = ? WHERE player_id = ?;
+
+-- name: UpdatePlayerPassword :exec
+UPDATE players SET password_hash = ? WHERE player_id = ?;
