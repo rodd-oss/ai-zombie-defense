@@ -11,6 +11,8 @@ import (
 	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	fiberLogger "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
@@ -29,11 +31,36 @@ func New(cfg config.Config, logger *zap.Logger, db db.DBTX) *Server {
 	// Create Fiber app with default settings
 	app := fiber.New(fiber.Config{
 		AppName: "AI Zombie Defense",
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// Status code defaults to 500
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			// Log internal server errors
+			if code >= fiber.StatusInternalServerError {
+				logger.Error("server error", zap.Error(err))
+			}
+			// Set Content-Type
+			c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			// Return JSON
+			return c.Status(code).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
 	})
 
 	// Add default middleware
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: cfg.Server.CORSAllowOrigins,
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 	app.Use(fiberLogger.New()) // Request logging
 	app.Use(recover.New())     // Panic recovery
+	app.Use(limiter.New(limiter.Config{
+		Max:        cfg.Server.RateLimitMax,
+		Expiration: cfg.Server.RateLimitDuration,
+	}))
 
 	// Create server instance
 	srv := &Server{
@@ -111,6 +138,20 @@ func (s *Server) registerRoutes() {
 		favoritesGroup.Post("/", favoriteHandlers.AddFavorite)
 		favoritesGroup.Get("/", favoriteHandlers.ListFavorites)
 		favoritesGroup.Delete("/:id", favoriteHandlers.RemoveFavorite)
+		// Friends routes (protected by JWT middleware)
+		friendHandlers := handlers.NewFriendHandlers(authService, s.logger)
+		friendsGroup := s.app.Group("/friends", middleware.AuthMiddleware(authService, s.logger))
+		friendsGroup.Post("/request", friendHandlers.SendFriendRequest)
+		friendsGroup.Put("/:id", friendHandlers.UpdateFriendRequest)
+		friendsGroup.Get("/", friendHandlers.ListFriends)
+
+		// Leaderboard routes (public)
+		leaderboardHandlers := handlers.NewLeaderboardHandlers(authService, s.logger)
+		leaderboardsGroup := s.app.Group("/leaderboards")
+		leaderboardsGroup.Get("/daily", leaderboardHandlers.GetDailyLeaderboard)
+		leaderboardsGroup.Get("/weekly", leaderboardHandlers.GetWeeklyLeaderboard)
+		leaderboardsGroup.Get("/alltime", leaderboardHandlers.GetAllTimeLeaderboard)
+
 		// Loot drop routes (protected by JWT middleware)
 		lootHandlers := handlers.NewLootHandlers(authService, s.logger)
 		lootGroup := s.app.Group("/loot", middleware.AuthMiddleware(authService, s.logger))
@@ -129,6 +170,12 @@ func (s *Server) registerRoutes() {
 		adminGroup.Put("/loot-tables/entries/:entryId", lootTableHandlers.UpdateLootTableEntry)
 		adminGroup.Delete("/loot-tables/entries/:entryId", lootTableHandlers.DeleteLootTableEntry)
 	}
+	// 404 handler for undefined routes
+	s.app.Use(func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "route not found",
+		})
+	})
 }
 
 // App returns the underlying Fiber application.

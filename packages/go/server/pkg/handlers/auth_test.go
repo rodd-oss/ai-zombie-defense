@@ -200,6 +200,22 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(`CREATE INDEX idx_player_cosmetics_cosmetic_id ON player_cosmetics (cosmetic_id)`); err != nil {
 		t.Fatalf("Failed to create player_cosmetics index: %v", err)
 	}
+	// Create friends table
+	if _, err := db.Exec(`CREATE TABLE friends (
+		player_id INTEGER NOT NULL,
+		friend_id INTEGER NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'blocked')),
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		PRIMARY KEY (player_id, friend_id),
+		FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE,
+		FOREIGN KEY (friend_id) REFERENCES players (player_id) ON DELETE CASCADE
+	);`); err != nil {
+		t.Fatalf("Failed to create friends table: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_friends_friend_id ON friends (friend_id);`); err != nil {
+		t.Fatalf("Failed to create friends index: %v", err)
+	}
 	// Create loadouts table
 	if _, err := db.Exec(`CREATE TABLE loadouts (
     loadout_id INTEGER PRIMARY KEY AUTOINCREMENT,

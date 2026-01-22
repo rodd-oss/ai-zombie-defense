@@ -44,6 +44,14 @@
 - Create server instance via `server.New(cfg, logger)`
 - Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
 - Test servers using random free ports via `net.Listen` and `zaptest.Logger`
+## Global Middleware
+
+- CORS middleware is enabled by default with configurable origins via `CORS_ALLOW_ORIGINS` environment variable (default: "*")
+- Rate limiting middleware is enabled with configurable max requests and duration via `RATE_LIMIT_MAX` (default: 10) and `RATE_LIMIT_DURATION` (default: 1m)
+- Error handler returns consistent JSON error responses with status codes
+- 404 handler returns JSON `{"error": "route not found"}`
+- Middleware order: CORS → Logger → Recovery → Rate Limiter
+
 ## Authentication
 
 - Use `pkg/auth.Service` for authentication logic

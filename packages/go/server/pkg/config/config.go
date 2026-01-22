@@ -27,8 +27,11 @@ type DatabaseConfig struct {
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Host string
-	Port int
+	Host              string
+	Port              int
+	CORSAllowOrigins  string
+	RateLimitMax      int
+	RateLimitDuration time.Duration
 }
 
 // JWTConfig holds JWT token generation and validation settings.
@@ -75,8 +78,11 @@ func LoadConfig() (*Config, error) {
 			MigrationsPath:  v.GetString("db_migrations_path"),
 		},
 		Server: ServerConfig{
-			Host: v.GetString("server_host"),
-			Port: v.GetInt("server_port"),
+			Host:              v.GetString("server_host"),
+			Port:              v.GetInt("server_port"),
+			CORSAllowOrigins:  v.GetString("cors_allow_origins"),
+			RateLimitMax:      v.GetInt("rate_limit_max"),
+			RateLimitDuration: v.GetDuration("rate_limit_duration"),
 		},
 		JWT: JWTConfig{
 			Secret:            v.GetString("jwt_secret"),
@@ -103,6 +109,9 @@ func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("server_host", "0.0.0.0")
 	v.SetDefault("server_port", 8080)
+	v.SetDefault("cors_allow_origins", "*")
+	v.SetDefault("rate_limit_max", 10)
+	v.SetDefault("rate_limit_duration", 1*time.Minute)
 
 	// JWT defaults
 	v.SetDefault("jwt_access_expiration", 15*time.Minute)
@@ -124,6 +133,9 @@ func bindEnv(v *viper.Viper) {
 	// Server
 	_ = v.BindEnv("server_host", "SERVER_HOST")
 	_ = v.BindEnv("server_port", "SERVER_PORT")
+	_ = v.BindEnv("cors_allow_origins", "CORS_ALLOW_ORIGINS")
+	_ = v.BindEnv("rate_limit_max", "RATE_LIMIT_MAX")
+	_ = v.BindEnv("rate_limit_duration", "RATE_LIMIT_DURATION")
 
 	// JWT
 	_ = v.BindEnv("jwt_secret", "JWT_SECRET")

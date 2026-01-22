@@ -296,3 +296,19 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Validation ensures drop_chance and quantity ranges are reasonable
   - Test database setup must match production schema exactly; update all test files when adding columns
 ---
+
+## 2026-01-22 21:27 UTC - US-030
+- Implemented API gateway with route aggregation and middleware
+- Added CORS middleware with configurable allow origins
+- Added rate limiting middleware with configurable max requests and duration
+- Added custom error handler for consistent JSON error responses
+- Added 404 handler for undefined routes returning JSON
+- Route groups already existed for auth, account, progression, servers, matches, loot, leaderboards, social
+- Files changed: packages/go/server/pkg/config/config.go, packages/go/server/pkg/server/server.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Fiber middleware order matters: CORS should be before other middleware that might set headers
+  - Rate limiting uses Max and Expiration configuration; default 10 requests per minute per IP
+  - Custom error handler catches unhandled errors and returns JSON with error message
+  - 404 handler must be registered after all routes (app.Use) to catch undefined routes
+  - Use environment variables CORS_ALLOW_ORIGINS, RATE_LIMIT_MAX, RATE_LIMIT_DURATION for configuration
+---

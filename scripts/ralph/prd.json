@@ -432,8 +432,8 @@
         "Tests pass"
       ],
       "priority": 28,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Friend system implemented with SQL queries, auth service methods, handlers, and integration tests. All acceptance criteria met."
     },
     {
       "id": "US-029",
@@ -448,8 +448,8 @@
         "Tests pass"
       ],
       "priority": 29,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Leaderboard calculation service implemented with SQL queries aggregating from player_match_stats, auth service methods, handlers, routes, and integration tests. All acceptance criteria met."
     },
     {
       "id": "US-030",
@@ -463,8 +463,8 @@
         "Tests pass"
       ],
       "priority": 30,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "API gateway implemented with route groups, CORS middleware, rate limiting, request logging, and consistent error responses (custom error handler and 404 JSON responses). All acceptance criteria met."
     }
   ]
 }

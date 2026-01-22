@@ -22,26 +22,30 @@ import (
 )
 
 var (
-	ErrInvalidCredentials     = errors.New("invalid credentials")
-	ErrPlayerBanned           = errors.New("player is banned")
-	ErrDuplicateUsername      = errors.New("username already exists")
-	ErrDuplicateEmail         = errors.New("email already exists")
-	ErrInvalidRefreshToken    = errors.New("invalid refresh token")
-	ErrSessionNotFound        = errors.New("session not found")
-	ErrCosmeticNotFound       = errors.New("cosmetic not found")
-	ErrCosmeticNotOwned       = errors.New("cosmetic not owned")
-	ErrLoadoutNotFound        = errors.New("loadout not found")
-	ErrMatchNotFound          = errors.New("match not found")
-	ErrServerNotFound         = errors.New("server not found")
-	ErrJoinTokenInvalid       = errors.New("join token invalid")
-	ErrJoinTokenExpired       = errors.New("join token expired")
-	ErrJoinTokenAlreadyUsed   = errors.New("join token already used")
-	ErrFavoriteAlreadyExists  = errors.New("server already favorited")
-	ErrFavoriteNotFound       = errors.New("favorite not found")
-	ErrLootTableNotFound      = errors.New("loot table not found")
-	ErrLootTableEntryNotFound = errors.New("loot table entry not found")
-	ErrInsufficientCurrency   = errors.New("insufficient data currency")
-	ErrCosmeticAlreadyOwned   = errors.New("cosmetic already owned")
+	ErrInvalidCredentials         = errors.New("invalid credentials")
+	ErrPlayerBanned               = errors.New("player is banned")
+	ErrDuplicateUsername          = errors.New("username already exists")
+	ErrDuplicateEmail             = errors.New("email already exists")
+	ErrInvalidRefreshToken        = errors.New("invalid refresh token")
+	ErrSessionNotFound            = errors.New("session not found")
+	ErrCosmeticNotFound           = errors.New("cosmetic not found")
+	ErrCosmeticNotOwned           = errors.New("cosmetic not owned")
+	ErrLoadoutNotFound            = errors.New("loadout not found")
+	ErrMatchNotFound              = errors.New("match not found")
+	ErrServerNotFound             = errors.New("server not found")
+	ErrJoinTokenInvalid           = errors.New("join token invalid")
+	ErrJoinTokenExpired           = errors.New("join token expired")
+	ErrJoinTokenAlreadyUsed       = errors.New("join token already used")
+	ErrFavoriteAlreadyExists      = errors.New("server already favorited")
+	ErrFavoriteNotFound           = errors.New("favorite not found")
+	ErrLootTableNotFound          = errors.New("loot table not found")
+	ErrLootTableEntryNotFound     = errors.New("loot table entry not found")
+	ErrInsufficientCurrency       = errors.New("insufficient data currency")
+	ErrCosmeticAlreadyOwned       = errors.New("cosmetic already owned")
+	ErrFriendRequestAlreadyExists = errors.New("friend request already exists")
+	ErrFriendRequestNotFound      = errors.New("friend request not found")
+	ErrFriendRequestNotPending    = errors.New("friend request not pending")
+	ErrCannotFriendSelf           = errors.New("cannot send friend request to yourself")
 )
 
 type Service struct {
@@ -1149,6 +1153,117 @@ func (s *Service) ListPlayerFavorites(ctx context.Context, playerID int64) ([]*d
 	return favorites, nil
 }
 
+// SendFriendRequest sends a friend request from playerID to friendID.
+func (s *Service) SendFriendRequest(ctx context.Context, playerID int64, friendID int64) error {
+	if playerID == friendID {
+		return ErrCannotFriendSelf
+	}
+	existing, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
+		PlayerID: playerID,
+		FriendID: friendID,
+	})
+	if err == nil && existing != nil {
+		return ErrFriendRequestAlreadyExists
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check existing friend request: %w", err)
+	}
+	params := &db.CreateFriendRequestParams{
+		PlayerID: playerID,
+		FriendID: friendID,
+	}
+	err = s.queries.CreateFriendRequest(ctx, s.dbConn, params)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: friends.player_id, friends.friend_id") {
+			return ErrFriendRequestAlreadyExists
+		}
+		return fmt.Errorf("failed to create friend request: %w", err)
+	}
+	s.logger.Debug("Friend request sent", zap.Int64("player_id", playerID), zap.Int64("friend_id", friendID))
+	return nil
+}
+
+// AcceptFriendRequest accepts a pending friend request.
+func (s *Service) AcceptFriendRequest(ctx context.Context, requesterPlayerID int64, friendID int64) error {
+	request, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
+		PlayerID: requesterPlayerID,
+		FriendID: friendID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrFriendRequestNotFound
+		}
+		return fmt.Errorf("failed to get friend request: %w", err)
+	}
+	if request.Status != "pending" {
+		return ErrFriendRequestNotPending
+	}
+	params := &db.AcceptFriendRequestParams{
+		PlayerID: requesterPlayerID,
+		FriendID: friendID,
+	}
+	err = s.queries.AcceptFriendRequest(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to accept friend request: %w", err)
+	}
+	s.logger.Debug("Friend request accepted", zap.Int64("player_id", requesterPlayerID), zap.Int64("friend_id", friendID))
+	return nil
+}
+
+// DeclineFriendRequest declines a pending friend request.
+func (s *Service) DeclineFriendRequest(ctx context.Context, requesterPlayerID int64, friendID int64) error {
+	request, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
+		PlayerID: requesterPlayerID,
+		FriendID: friendID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrFriendRequestNotFound
+		}
+		return fmt.Errorf("failed to get friend request: %w", err)
+	}
+	if request.Status != "pending" {
+		return ErrFriendRequestNotPending
+	}
+	params := &db.DeclineFriendRequestParams{
+		PlayerID: requesterPlayerID,
+		FriendID: friendID,
+	}
+	err = s.queries.DeclineFriendRequest(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to decline friend request: %w", err)
+	}
+	s.logger.Debug("Friend request declined", zap.Int64("player_id", requesterPlayerID), zap.Int64("friend_id", friendID))
+	return nil
+}
+
+// ListFriends returns the player's accepted friends.
+func (s *Service) ListFriends(ctx context.Context, playerID int64) ([]*db.ListFriendsRow, error) {
+	friends, err := s.queries.ListFriends(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list friends: %w", err)
+	}
+	return friends, nil
+}
+
+// ListPendingIncoming returns pending incoming friend requests.
+func (s *Service) ListPendingIncoming(ctx context.Context, playerID int64) ([]*db.ListPendingIncomingRow, error) {
+	requests, err := s.queries.ListPendingIncoming(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pending incoming requests: %w", err)
+	}
+	return requests, nil
+}
+
+// ListPendingOutgoing returns pending outgoing friend requests.
+func (s *Service) ListPendingOutgoing(ctx context.Context, playerID int64) ([]*db.ListPendingOutgoingRow, error) {
+	requests, err := s.queries.ListPendingOutgoing(ctx, s.dbConn, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pending outgoing requests: %w", err)
+	}
+	return requests, nil
+}
+
 // CreateLootTable creates a new loot table.
 func (s *Service) CreateLootTable(ctx context.Context, name string, description *string, dropChance float64, isActive bool) (*db.LootTable, error) {
 	isActiveInt := int64(0)
@@ -1520,4 +1635,31 @@ func (s *Service) IsAdmin(ctx context.Context, playerID int64) (bool, error) {
 		return false, fmt.Errorf("failed to check admin status: %w", err)
 	}
 	return player.IsAdmin == 1, nil
+}
+
+// GetDailyLeaderboard returns the daily leaderboard rankings.
+func (s *Service) GetDailyLeaderboard(ctx context.Context) ([]*db.GetDailyLeaderboardRow, error) {
+	entries, err := s.queries.GetDailyLeaderboard(ctx, s.dbConn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daily leaderboard: %w", err)
+	}
+	return entries, nil
+}
+
+// GetWeeklyLeaderboard returns the weekly leaderboard rankings.
+func (s *Service) GetWeeklyLeaderboard(ctx context.Context) ([]*db.GetWeeklyLeaderboardRow, error) {
+	entries, err := s.queries.GetWeeklyLeaderboard(ctx, s.dbConn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get weekly leaderboard: %w", err)
+	}
+	return entries, nil
+}
+
+// GetAllTimeLeaderboard returns the all-time leaderboard rankings.
+func (s *Service) GetAllTimeLeaderboard(ctx context.Context) ([]*db.GetAllTimeLeaderboardRow, error) {
+	entries, err := s.queries.GetAllTimeLeaderboard(ctx, s.dbConn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all-time leaderboard: %w", err)
+	}
+	return entries, nil
 }
