@@ -113,4 +113,17 @@ sql:
             go_type:
               import: "ai-zombie-defense/db/types"
               type: "Timestamp"
+          - column: "join_tokens.expires_at"
+            go_type:
+              import: "ai-zombie-defense/db/types"
+              type: "Timestamp"
+          - column: "join_tokens.created_at"
+            go_type:
+              import: "ai-zombie-defense/db/types"
+              type: "Timestamp"
+          - column: "join_tokens.used_at"
+            go_type:
+              import: "ai-zombie-defense/db/types"
+              type: "NullTimestamp"
+
 

@@ -101,6 +101,8 @@ func (s *Server) registerRoutes() {
 		serversGroup.Post("/register", serverHandlers.RegisterServer)
 		serversGroup.Get("/", serverHandlers.ListServers)
 		serversGroup.Put("/:id/heartbeat", middleware.ServerAuthMiddleware(authService, s.logger), serverHandlers.UpdateHeartbeat)
+		serversGroup.Post("/:id/join", middleware.AuthMiddleware(authService, s.logger), serverHandlers.GenerateJoinToken)
+		serversGroup.Post("/join-token/:token/validate", middleware.ServerAuthMiddleware(authService, s.logger), serverHandlers.ValidateJoinToken)
 	}
 }
 

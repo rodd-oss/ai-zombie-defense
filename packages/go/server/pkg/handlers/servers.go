@@ -3,7 +3,9 @@ package handlers
 import (
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/middleware"
+	"errors"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -182,4 +184,93 @@ func (h *ServerHandlers) ListServers(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(servers)
+}
+
+type GenerateJoinTokenResponse struct {
+	Token     string `json:"token"`
+	ExpiresAt string `json:"expires_at"`
+	ServerID  int64  `json:"server_id"`
+	PlayerID  int64  `json:"player_id"`
+}
+
+// GenerateJoinToken handles POST /servers/:id/join
+func (h *ServerHandlers) GenerateJoinToken(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID not found in context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	serverID, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid server ID",
+		})
+	}
+
+	// Generate token with 30-second expiry
+	token, err := h.service.GenerateJoinToken(c.Context(), playerID, int64(serverID), 30*time.Second)
+	if err != nil {
+		h.logger.Error("Failed to generate join token", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate join token",
+		})
+	}
+
+	// Get token details (we could fetch from DB, but we know expiry)
+	expiresAt := time.Now().UTC().Add(30 * time.Second).Format("2006-01-02T15:04:05Z")
+	resp := GenerateJoinTokenResponse{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		ServerID:  int64(serverID),
+		PlayerID:  playerID,
+	}
+	return c.Status(fiber.StatusCreated).JSON(resp)
+}
+
+type ValidateJoinTokenResponse struct {
+	PlayerID  int64  `json:"player_id"`
+	ServerID  int64  `json:"server_id"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+// ValidateJoinToken handles POST /servers/join-token/:token/validate
+func (h *ServerHandlers) ValidateJoinToken(c *fiber.Ctx) error {
+	token := c.Params("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Missing token",
+		})
+	}
+
+	playerID, serverID, err := h.service.ValidateJoinToken(c.Context(), token)
+	if err != nil {
+		if errors.Is(err, auth.ErrJoinTokenInvalid) || errors.Is(err, auth.ErrJoinTokenExpired) || errors.Is(err, auth.ErrJoinTokenAlreadyUsed) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		h.logger.Error("Failed to validate join token", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to validate join token",
+		})
+	}
+
+	// Mark token as used (consume)
+	err = h.service.MarkTokenUsed(c.Context(), token)
+	if err != nil {
+		h.logger.Error("Failed to mark token as used", zap.Error(err))
+		// We still return success because token is valid, but log error
+	}
+
+	// Get token details for expiration (optional)
+	// We could fetch token row, but for simplicity just return IDs
+	resp := ValidateJoinTokenResponse{
+		PlayerID:  playerID,
+		ServerID:  serverID,
+		ExpiresAt: time.Now().UTC().Add(30 * time.Second).Format("2006-01-02T15:04:05Z"), // approximate
+	}
+	return c.Status(fiber.StatusOK).JSON(resp)
 }

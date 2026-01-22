@@ -39,6 +39,16 @@ type Friend struct {
 	UpdatedAt types.Timestamp `json:"updated_at"`
 }
 
+type JoinToken struct {
+	JoinTokenID int64               `json:"join_token_id"`
+	Token       string              `json:"token"`
+	PlayerID    int64               `json:"player_id"`
+	ServerID    int64               `json:"server_id"`
+	ExpiresAt   types.Timestamp     `json:"expires_at"`
+	CreatedAt   types.Timestamp     `json:"created_at"`
+	UsedAt      types.NullTimestamp `json:"used_at"`
+}
+
 type LeaderboardEntry struct {
 	LeaderboardID    int64           `json:"leaderboard_id"`
 	PlayerID         int64           `json:"player_id"`

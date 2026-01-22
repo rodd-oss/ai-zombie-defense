@@ -338,8 +338,8 @@
         "Tests pass"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented join token system with POST /servers/:id/join (JWT protected) generating time-limited token, and POST /servers/join-token/:token/validate (server auth protected) validating and consuming token. Token includes player ID and server ID, stored in join_tokens table with expiry and used flag. Typecheck passes, tests pass."
     },
     {
       "id": "US-023",

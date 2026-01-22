@@ -21,17 +21,20 @@ import (
 )
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrPlayerBanned        = errors.New("player is banned")
-	ErrDuplicateUsername   = errors.New("username already exists")
-	ErrDuplicateEmail      = errors.New("email already exists")
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
-	ErrSessionNotFound     = errors.New("session not found")
-	ErrCosmeticNotFound    = errors.New("cosmetic not found")
-	ErrCosmeticNotOwned    = errors.New("cosmetic not owned")
-	ErrLoadoutNotFound     = errors.New("loadout not found")
-	ErrMatchNotFound       = errors.New("match not found")
-	ErrServerNotFound      = errors.New("server not found")
+	ErrInvalidCredentials   = errors.New("invalid credentials")
+	ErrPlayerBanned         = errors.New("player is banned")
+	ErrDuplicateUsername    = errors.New("username already exists")
+	ErrDuplicateEmail       = errors.New("email already exists")
+	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrCosmeticNotFound     = errors.New("cosmetic not found")
+	ErrCosmeticNotOwned     = errors.New("cosmetic not owned")
+	ErrLoadoutNotFound      = errors.New("loadout not found")
+	ErrMatchNotFound        = errors.New("match not found")
+	ErrServerNotFound       = errors.New("server not found")
+	ErrJoinTokenInvalid     = errors.New("join token invalid")
+	ErrJoinTokenExpired     = errors.New("join token expired")
+	ErrJoinTokenAlreadyUsed = errors.New("join token already used")
 )
 
 type Service struct {
@@ -923,4 +926,78 @@ func (s *Service) ListActiveServers(ctx context.Context, region, mapRotation, ve
 		return nil, fmt.Errorf("failed to list active servers: %w", err)
 	}
 	return servers, nil
+}
+
+// GenerateJoinToken creates a new join token for a player to join a specific server.
+// The token expires after the specified duration.
+func (s *Service) GenerateJoinToken(ctx context.Context, playerID int64, serverID int64, expiresIn time.Duration) (string, error) {
+	// Generate random token (hex)
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random token: %w", err)
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	expiresAt := time.Now().UTC().Add(expiresIn)
+	params := &db.CreateJoinTokenParams{
+		Token:     token,
+		PlayerID:  playerID,
+		ServerID:  serverID,
+		ExpiresAt: types.Timestamp{Time: expiresAt},
+	}
+
+	_, err := s.queries.CreateJoinToken(ctx, s.dbConn, params)
+	if err != nil {
+		return "", fmt.Errorf("failed to create join token: %w", err)
+	}
+
+	s.logger.Debug("Join token generated",
+		zap.Int64("player_id", playerID),
+		zap.Int64("server_id", serverID),
+		zap.Time("expires_at", expiresAt))
+	return token, nil
+}
+
+// ValidateJoinToken validates a join token and returns the associated player and server IDs.
+// Returns ErrJoinTokenInvalid if token not found, ErrJoinTokenExpired if expired,
+// ErrJoinTokenAlreadyUsed if already used.
+func (s *Service) ValidateJoinToken(ctx context.Context, token string) (playerID int64, serverID int64, err error) {
+	joinToken, err := s.queries.GetValidJoinToken(ctx, s.dbConn, token)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Could be invalid, expired, or already used
+			// Try to get token to determine exact reason
+			tokenRow, err2 := s.queries.GetJoinToken(ctx, s.dbConn, token)
+			if err2 != nil {
+				if errors.Is(err2, sql.ErrNoRows) {
+					return 0, 0, ErrJoinTokenInvalid
+				}
+				return 0, 0, fmt.Errorf("failed to get join token: %w", err2)
+			}
+			// Token exists but not valid
+			expiresAt := tokenRow.ExpiresAt.Time
+			if expiresAt.Before(time.Now().UTC()) {
+				return 0, 0, ErrJoinTokenExpired
+			}
+			if tokenRow.UsedAt.Valid {
+				return 0, 0, ErrJoinTokenAlreadyUsed
+			}
+			// Should not happen (token not expired, not used, but still invalid?)
+			return 0, 0, ErrJoinTokenInvalid
+		}
+		return 0, 0, fmt.Errorf("failed to validate join token: %w", err)
+	}
+
+	// Token is valid
+	return joinToken.PlayerID, joinToken.ServerID, nil
+}
+
+// MarkTokenUsed marks a join token as used (consumed).
+func (s *Service) MarkTokenUsed(ctx context.Context, token string) error {
+	err := s.queries.MarkTokenUsed(ctx, s.dbConn, token)
+	if err != nil {
+		return fmt.Errorf("failed to mark token as used: %w", err)
+	}
+	s.logger.Debug("Join token marked as used", zap.String("token", token))
+	return nil
 }

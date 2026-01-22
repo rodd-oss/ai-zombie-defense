@@ -260,3 +260,13 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Server browser endpoint is public and returns only active servers (is_online=1)
   - Query parameters are optional; use pointers and convert empty strings to nil
 ---
+## 2026-01-22 21:53 UTC - US-022
+- Implemented join token system with POST /servers/:id/join (JWT protected) and POST /servers/join-token/:token/validate (server auth protected)
+- Added join_tokens table migration, sqlc queries, service methods, handlers, and routes
+- Files changed: packages/go/db/migrations/20260122184336_join_tokens.sql, packages/go/db/schema/schema.sql, packages/go/db/queries/join_tokens.sql, packages/go/db/sqlc.yaml, packages/go/db/join_tokens.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/servers.go, packages/go/server/pkg/server/server.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Use types.Timestamp for SQLite timestamp columns in sqlc overrides
+  - Join token validation uses GetValidJoinToken which filters for expiry and unused; fallback to GetJoinToken for specific error messages
+  - Server authentication middleware required for token validation endpoint
+  - Token generation uses crypto/rand hex encoding for secure random strings
+---
