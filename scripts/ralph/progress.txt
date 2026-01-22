@@ -1,0 +1,15 @@
+# Ralph Progress Log
+Started: Thu Jan 22 13:48:44 MSK 2026
+---
+
+## 2026-01-22 10:51 UTC - US-001
+- Converted ERD diagram to SQL migration files for all database tables
+- Created 16 migration files in packages/go/db/migrations/ with proper foreign key constraints and indexes
+- Files changed: packages/go/db/migrations/*.sql, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Database schema is defined in docs/c4/containers/database-erd.puml as PlantUML
+  - SQLite does not support ENUM types; use CHECK constraints with IN list
+  - Use TEXT for timestamps with ISO 8601 format (strftime)
+  - Foreign key indexes are not automatically created; need explicit CREATE INDEX
+  - Naming convention: YYYYMMDDHHMMSS_table_name.sql for goose migrations
+---
