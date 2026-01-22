@@ -874,3 +874,29 @@ func (s *Service) RegisterServer(ctx context.Context, ipAddress string, port int
 
 	return server, authToken, nil
 }
+
+// GetServerByAuthToken retrieves a server by its authentication token.
+func (s *Service) GetServerByAuthToken(ctx context.Context, authToken string) (*db.Server, error) {
+	server, err := s.queries.GetServerByAuthToken(ctx, s.dbConn, &authToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server by auth token: %w", err)
+	}
+	return server, nil
+}
+
+// UpdateServerHeartbeat updates the last heartbeat timestamp, current player count, and map rotation for a server.
+func (s *Service) UpdateServerHeartbeat(ctx context.Context, serverID int64, currentPlayers int64, mapRotation *string) error {
+	// Use current time as heartbeat timestamp
+	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	params := &db.UpdateServerHeartbeatParams{
+		LastHeartbeat:  &now,
+		CurrentPlayers: currentPlayers,
+		MapRotation:    mapRotation,
+		ServerID:       serverID,
+	}
+	err := s.queries.UpdateServerHeartbeat(ctx, s.dbConn, params)
+	if err != nil {
+		return fmt.Errorf("failed to update server heartbeat: %w", err)
+	}
+	return nil
+}

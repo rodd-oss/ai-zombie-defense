@@ -238,3 +238,17 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Auth token generation uses crypto/rand and hex encoding for secure random strings
   - Server registration endpoint is public (no authentication) and returns auth token for future authentication
 ---
+
+## 2026-01-22 21:20 UTC - US-020
+- Implemented heartbeat endpoint PUT /servers/:id/heartbeat with server authentication middleware
+- Added server authentication middleware (ServerAuthMiddleware) validating X-Server-Token header
+- Updated UpdateServerHeartbeat SQL query to include map_rotation column
+- Added GetServerByAuthToken and UpdateServerHeartbeat methods to auth service
+- Updated test database schema with auth_token column and index
+- Files changed: packages/go/db/queries/servers.sql, packages/go/db/servers.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/middleware/server_auth.go, packages/go/server/pkg/handlers/servers.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/auth_test.go, packages/go/server/pkg/handlers/servers_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Server authentication middleware pattern similar to JWT middleware but with custom header
+  - SQLite UNIQUE columns need explicit CREATE UNIQUE INDEX after column addition
+  - UpdateServerHeartbeat query already existed; extended with map_rotation parameter
+  - Use server.New for full route integration testing instead of manually building routes
+---

@@ -178,6 +178,7 @@ func setupTestDB(t *testing.T) *sql.DB {
     server_id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip_address TEXT NOT NULL,
     port INTEGER NOT NULL,
+    auth_token TEXT UNIQUE,
     name TEXT NOT NULL,
     map_rotation TEXT,
     max_players INTEGER NOT NULL,
@@ -189,6 +190,10 @@ func setupTestDB(t *testing.T) *sql.DB {
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );`); err != nil {
 		t.Fatalf("Failed to create servers table: %v", err)
+	}
+	// Create unique index for auth_token
+	if _, err := db.Exec(`CREATE UNIQUE INDEX idx_servers_auth_token ON servers(auth_token);`); err != nil {
+		t.Fatalf("Failed to create auth_token index: %v", err)
 	}
 	// Create matches table
 	if _, err := db.Exec(`CREATE TABLE matches (

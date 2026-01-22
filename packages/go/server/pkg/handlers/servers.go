@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -84,4 +85,48 @@ func (h *ServerHandlers) RegisterServer(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(resp)
+}
+
+// UpdateHeartbeatRequest defines the request body for updating server heartbeat.
+type UpdateHeartbeatRequest struct {
+	CurrentPlayers int64   `json:"current_players"`
+	Map            *string `json:"map,omitempty"`
+}
+
+// UpdateHeartbeat handles PUT /servers/:id/heartbeat
+func (h *ServerHandlers) UpdateHeartbeat(c *fiber.Ctx) error {
+	serverID, ok := middleware.GetServerID(c)
+	if !ok {
+		h.logger.Error("server ID not found in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+
+	var req UpdateHeartbeatRequest
+	if err := c.BodyParser(&req); err != nil {
+		h.logger.Error("Failed to parse request body", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate current players not negative
+	if req.CurrentPlayers < 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "current_players cannot be negative",
+		})
+	}
+
+	err := h.service.UpdateServerHeartbeat(c.Context(), serverID, req.CurrentPlayers, req.Map)
+	if err != nil {
+		h.logger.Error("Failed to update server heartbeat", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update heartbeat",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status": "ok",
+	})
 }

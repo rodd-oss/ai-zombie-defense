@@ -99,6 +99,7 @@ func (s *Server) registerRoutes() {
 		serverHandlers := handlers.NewServerHandlers(authService, s.logger)
 		serversGroup := s.app.Group("/servers")
 		serversGroup.Post("/register", serverHandlers.RegisterServer)
+		serversGroup.Put("/:id/heartbeat", middleware.ServerAuthMiddleware(authService, s.logger), serverHandlers.UpdateHeartbeat)
 	}
 }
 

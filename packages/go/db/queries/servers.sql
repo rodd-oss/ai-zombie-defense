@@ -22,7 +22,7 @@ SELECT * FROM servers ORDER BY server_id;
 
 -- name: UpdateServerHeartbeat :exec
 UPDATE servers
-SET last_heartbeat = ?, current_players = ?, is_online = 1
+SET last_heartbeat = ?, current_players = ?, is_online = 1, map_rotation = ?
 WHERE server_id = ?;
 
 -- name: MarkServerOffline :exec

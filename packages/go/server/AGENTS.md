@@ -67,6 +67,15 @@
 - Returns 401 for missing/invalid tokens with JSON error response
  - Always use Bearer token format: `Authorization: Bearer <token>`
 
+## Server Authentication Middleware
+
+- Server authentication uses `X-Server-Token` header and path parameter validation
+- Middleware: `pkg/middleware.ServerAuthMiddleware(authService, logger)`
+- Extracts server ID from path param `:id`, validates token via `authService.GetServerByAuthToken`
+- Stores server ID in `c.Locals("server_id")`; retrieve with `middleware.GetServerID(c)`
+- Returns 401 for missing/invalid tokens, 403 for server ID mismatch
+- Used for heartbeat endpoint and future server-authenticated endpoints
+
 ## Adding New Endpoints
 - Pattern for adding new endpoints:
   1. Add SQL queries in `db/queries/` (`.sql` files)

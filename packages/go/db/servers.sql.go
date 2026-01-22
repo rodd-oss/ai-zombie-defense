@@ -177,17 +177,23 @@ func (q *Queries) MarkServerOffline(ctx context.Context, db DBTX, serverID int64
 
 const updateServerHeartbeat = `-- name: UpdateServerHeartbeat :exec
 UPDATE servers
-SET last_heartbeat = ?, current_players = ?, is_online = 1
+SET last_heartbeat = ?, current_players = ?, is_online = 1, map_rotation = ?
 WHERE server_id = ?
 `
 
 type UpdateServerHeartbeatParams struct {
 	LastHeartbeat  *string `json:"last_heartbeat"`
 	CurrentPlayers int64   `json:"current_players"`
+	MapRotation    *string `json:"map_rotation"`
 	ServerID       int64   `json:"server_id"`
 }
 
 func (q *Queries) UpdateServerHeartbeat(ctx context.Context, db DBTX, arg *UpdateServerHeartbeatParams) error {
-	_, err := db.ExecContext(ctx, updateServerHeartbeat, arg.LastHeartbeat, arg.CurrentPlayers, arg.ServerID)
+	_, err := db.ExecContext(ctx, updateServerHeartbeat,
+		arg.LastHeartbeat,
+		arg.CurrentPlayers,
+		arg.MapRotation,
+		arg.ServerID,
+	)
 	return err
 }

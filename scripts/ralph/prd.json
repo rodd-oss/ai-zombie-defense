@@ -308,8 +308,8 @@
         "Tests pass"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Heartbeat endpoint implemented with server authentication middleware. Updates last_heartbeat, current_players, map_rotation, and sets is_online=1. Tests pass."
     },
     {
       "id": "US-021",
