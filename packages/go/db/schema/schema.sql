@@ -10,7 +10,8 @@ CREATE TABLE players (
     last_login_at TEXT,
     is_banned INTEGER NOT NULL DEFAULT 0,
     banned_reason TEXT,
-banned_until TEXT
+    banned_until TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE sessions (

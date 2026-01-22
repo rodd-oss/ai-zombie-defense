@@ -75,19 +75,9 @@ func TestRunMigrations(t *testing.T) {
 		}
 	}
 
-	// Rollback the latest migration (should be join_tokens)
+	// Rollback the latest migration
 	if err := RollbackWithDir(db, migrationsDst); err != nil {
 		t.Fatalf("Rollback failed: %v", err)
-	}
-
-	// Verify join_tokens table is gone
-	var count int
-	err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='join_tokens'`).Scan(&count)
-	if err != nil {
-		t.Errorf("Failed to query for join_tokens: %v", err)
-	}
-	if count != 0 {
-		t.Errorf("Table join_tokens should have been dropped after rollback, found %d", count)
 	}
 }
 

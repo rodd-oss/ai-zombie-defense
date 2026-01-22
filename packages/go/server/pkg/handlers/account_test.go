@@ -603,6 +603,149 @@ func TestAccountHandlers_GetPlayerCosmetics(t *testing.T) {
 		t.Errorf("Expected status 401 for missing token, got %d", resp.StatusCode)
 	}
 }
+
+func TestAccountHandlers_PurchaseCosmetic(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	// Create a player
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Insert a cosmetic item with data_cost
+	_, err := db.Exec(`INSERT INTO cosmetic_items (name, description, slot, category, rarity, unlock_level, data_cost, is_prestige_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"Test Skin", "A test cosmetic", "character_skin", "skins", "common", 1, 150, 0)
+	if err != nil {
+		t.Fatalf("Failed to insert cosmetic item: %v", err)
+	}
+	var cosmeticID int64
+	err = db.QueryRow(`SELECT cosmetic_id FROM cosmetic_items WHERE name = ?`, "Test Skin").Scan(&cosmeticID)
+	if err != nil {
+		t.Fatalf("Failed to get cosmetic ID: %v", err)
+	}
+
+	// Insert second cosmetic for insufficient currency test
+	_, err = db.Exec(`INSERT INTO cosmetic_items (name, description, slot, category, rarity, unlock_level, data_cost, is_prestige_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"Test Skin 2", "Another test cosmetic", "character_skin", "skins", "common", 1, 100, 0)
+	if err != nil {
+		t.Fatalf("Failed to insert second cosmetic item: %v", err)
+	}
+	var cosmeticID2 int64
+	err = db.QueryRow(`SELECT cosmetic_id FROM cosmetic_items WHERE name = ?`, "Test Skin 2").Scan(&cosmeticID2)
+	if err != nil {
+		t.Fatalf("Failed to get second cosmetic ID: %v", err)
+	}
+
+	// Give player some data currency (200)
+	_, err = db.Exec(`INSERT INTO player_progression (player_id, data_currency) VALUES (?, ?) ON CONFLICT(player_id) DO UPDATE SET data_currency = ?`, playerID, 200, 200)
+	if err != nil {
+		t.Fatalf("Failed to set data currency: %v", err)
+	}
+
+	// Test successful purchase
+	reqBody := map[string]interface{}{"cosmetic_id": cosmeticID}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/cosmetics/purchase", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var respBody map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if respBody["message"] != "cosmetic purchased successfully" {
+		t.Errorf("Expected success message, got %v", respBody["message"])
+	}
+
+	// Verify currency deducted (balance 50)
+	var balance int64
+	err = db.QueryRow(`SELECT data_currency FROM player_progression WHERE player_id = ?`, playerID).Scan(&balance)
+	if err != nil {
+		t.Fatalf("Failed to query balance: %v", err)
+	}
+	if balance != 50 {
+		t.Errorf("Expected balance 50 after purchase, got %d", balance)
+	}
+
+	// Verify cosmetic owned
+	var unlockedVia string
+	err = db.QueryRow(`SELECT unlocked_via FROM player_cosmetics WHERE player_id = ? AND cosmetic_id = ?`, playerID, cosmeticID).Scan(&unlockedVia)
+	if err != nil {
+		t.Fatalf("Failed to query player_cosmetics: %v", err)
+	}
+	if unlockedVia != "purchase" {
+		t.Errorf("Expected unlocked_via purchase, got %s", unlockedVia)
+	}
+
+	// Verify transaction logged
+	var txCount int
+	err = db.QueryRow(`SELECT COUNT(*) FROM currency_transactions WHERE player_id = ? AND transaction_type = 'purchase' AND amount = ?`, playerID, -150).Scan(&txCount)
+	if err != nil {
+		t.Fatalf("Failed to query currency transactions: %v", err)
+	}
+	if txCount != 1 {
+		t.Errorf("Expected 1 transaction logged, got %d", txCount)
+	}
+
+	// Test insufficient currency (set balance to 0)
+	_, err = db.Exec(`UPDATE player_progression SET data_currency = 0 WHERE player_id = ?`, playerID)
+	if err != nil {
+		t.Fatalf("Failed to reset balance: %v", err)
+	}
+	// Use second cosmetic that player does not own
+	reqBody2 := map[string]interface{}{"cosmetic_id": cosmeticID2}
+	body2, _ := json.Marshal(reqBody2)
+	req2 := httptest.NewRequest(http.MethodPost, "/cosmetics/purchase", bytes.NewReader(body2))
+	req2.Header.Set("Authorization", "Bearer "+accessToken)
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := app.Test(req2, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp2.StatusCode != http.StatusPaymentRequired {
+		t.Errorf("Expected status 402 for insufficient currency, got %d", resp2.StatusCode)
+	}
+
+	// Test cosmetic not found
+	reqBody3 := map[string]interface{}{"cosmetic_id": 99999}
+	body3, _ := json.Marshal(reqBody3)
+	req3 := httptest.NewRequest(http.MethodPost, "/cosmetics/purchase", bytes.NewReader(body3))
+	req3.Header.Set("Authorization", "Bearer "+accessToken)
+	req3.Header.Set("Content-Type", "application/json")
+	resp3, err := app.Test(req3, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp3.StatusCode != http.StatusNotFound {
+		t.Errorf("Expected status 404 for cosmetic not found, got %d", resp3.StatusCode)
+	}
+
+	// Test duplicate purchase (already owned)
+	// Give currency again
+	_, err = db.Exec(`UPDATE player_progression SET data_currency = 200 WHERE player_id = ?`, playerID)
+	if err != nil {
+		t.Fatalf("Failed to reset balance: %v", err)
+	}
+	body4, _ := json.Marshal(reqBody)
+	req4 := httptest.NewRequest(http.MethodPost, "/cosmetics/purchase", bytes.NewReader(body4))
+	req4.Header.Set("Authorization", "Bearer "+accessToken)
+	req4.Header.Set("Content-Type", "application/json")
+	resp4, err := app.Test(req4, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	if resp4.StatusCode != http.StatusConflict {
+		t.Errorf("Expected status 409 for already owned, got %d", resp4.StatusCode)
+	}
+}
+
 func TestAccountHandlers_EquipCosmetic(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

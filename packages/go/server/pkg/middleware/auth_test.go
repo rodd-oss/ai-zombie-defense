@@ -33,7 +33,8 @@ func setupTestDB(t *testing.T) *sql.DB {
     last_login_at TEXT,
     is_banned INTEGER NOT NULL DEFAULT 0,
     banned_reason TEXT,
-    banned_until TEXT
+    banned_until TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );`
 	if _, err := db.Exec(createTableSQL); err != nil {
 		t.Fatalf("Failed to create players table: %v", err)

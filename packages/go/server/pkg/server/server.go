@@ -89,6 +89,7 @@ func (s *Server) registerRoutes() {
 		cosmeticsGroup.Get("/catalog", accountHandlers.GetCosmeticCatalog)
 		cosmeticsGroup.Get("/owned", accountHandlers.GetPlayerCosmetics)
 		cosmeticsGroup.Put("/equip", accountHandlers.EquipCosmetic)
+		cosmeticsGroup.Post("/purchase", accountHandlers.PurchaseCosmetic)
 
 		// Matches routes (protected by JWT middleware)
 		matchesGroup := s.app.Group("/matches", middleware.AuthMiddleware(authService, s.logger))
@@ -110,6 +111,23 @@ func (s *Server) registerRoutes() {
 		favoritesGroup.Post("/", favoriteHandlers.AddFavorite)
 		favoritesGroup.Get("/", favoriteHandlers.ListFavorites)
 		favoritesGroup.Delete("/:id", favoriteHandlers.RemoveFavorite)
+		// Loot drop routes (protected by JWT middleware)
+		lootHandlers := handlers.NewLootHandlers(authService, s.logger)
+		lootGroup := s.app.Group("/loot", middleware.AuthMiddleware(authService, s.logger))
+		lootGroup.Post("/drop", lootHandlers.GenerateLootDrop)
+		// Admin loot table routes (protected by JWT and admin middleware)
+		lootTableHandlers := handlers.NewLootTableHandlers(authService, s.logger)
+		adminGroup := s.app.Group("/admin", middleware.AuthMiddleware(authService, s.logger), middleware.AdminMiddleware(authService, s.logger))
+		adminGroup.Get("/loot-tables", lootTableHandlers.ListLootTables)
+		adminGroup.Post("/loot-tables", lootTableHandlers.CreateLootTable)
+		adminGroup.Get("/loot-tables/:id", lootTableHandlers.GetLootTable)
+		adminGroup.Put("/loot-tables/:id", lootTableHandlers.UpdateLootTable)
+		adminGroup.Delete("/loot-tables/:id", lootTableHandlers.DeleteLootTable)
+		adminGroup.Get("/loot-tables/:id/entries", lootTableHandlers.ListLootTableEntries)
+		adminGroup.Post("/loot-tables/:id/entries", lootTableHandlers.CreateLootTableEntry)
+		adminGroup.Get("/loot-tables/entries/:entryId", lootTableHandlers.GetLootTableEntry)
+		adminGroup.Put("/loot-tables/entries/:entryId", lootTableHandlers.UpdateLootTableEntry)
+		adminGroup.Delete("/loot-tables/entries/:entryId", lootTableHandlers.DeleteLootTableEntry)
 	}
 }
 

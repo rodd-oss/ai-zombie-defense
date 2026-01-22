@@ -443,6 +443,59 @@ func (h *AccountHandlers) EquipCosmetic(c *fiber.Ctx) error {
 	})
 }
 
+// PurchaseCosmetic handles POST /cosmetics/purchase
+func (h *AccountHandlers) PurchaseCosmetic(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	var req struct {
+		CosmeticID int64 `json:"cosmetic_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+	if req.CosmeticID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "cosmetic_id must be positive",
+		})
+	}
+
+	ctx := c.Context()
+	err := h.service.PurchaseCosmetic(ctx, playerID, req.CosmeticID)
+	if err != nil {
+		if err == auth.ErrCosmeticNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "cosmetic not found",
+			})
+		}
+		if err == auth.ErrInsufficientCurrency {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": "insufficient data currency",
+			})
+		}
+		if err == auth.ErrCosmeticAlreadyOwned {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "cosmetic already owned",
+			})
+		}
+		h.logger.Error("failed to purchase cosmetic", zap.Error(err), zap.Int64("player_id", playerID), zap.Int64("cosmetic_id", req.CosmeticID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "cosmetic purchased successfully",
+	})
+}
+
 // StoreMatch handles POST /matches
 func (h *AccountHandlers) StoreMatch(c *fiber.Ctx) error {
 	playerID, ok := middleware.GetPlayerID(c)

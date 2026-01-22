@@ -369,8 +369,8 @@
         "Tests pass"
       ],
       "priority": 24,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Loot table admin system implemented with is_admin column migration, SQL queries, auth service methods, admin middleware, and RESTful endpoints: GET/POST/PUT/DELETE /admin/loot-tables and /admin/loot-tables/:id/entries. All acceptance criteria met: tables exist from US-001, weighted probability via drop_chance column, admin endpoints protected by JWT + is_admin check. Typecheck passes, tests pass."
     },
     {
       "id": "US-025",
@@ -385,8 +385,8 @@
         "Tests pass"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented weighted random drop system with POST /loot/drop endpoint, JWT protection, and passing tests."
     },
     {
       "id": "US-026",
@@ -400,8 +400,8 @@
         "Tests pass"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Reward calculation integrated into match storage via StoreMatchWithStats, which now calls addMatchRewardsWithTx for each player. Uses existing AddMatchRewards with performance multipliers (xpPerKill=10, xpPerWave=50, baseXP=100). All tests pass."
     },
     {
       "id": "US-027",
@@ -416,8 +416,8 @@
         "Tests pass"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented POST /cosmetics/purchase endpoint that validates player has sufficient Data currency, deducts currency, grants cosmetic ownership, logs transaction. Added PurchaseCosmetic method in auth service, handler in account handlers, route in server.go, and comprehensive tests. All acceptance criteria met."
     },
     {
       "id": "US-028",

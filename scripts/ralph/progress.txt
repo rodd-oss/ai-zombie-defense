@@ -279,3 +279,20 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Use strconv for URL parameter conversion in tests; avoid string(rune(id)) which produces invalid characters
   - Test helper functions are in handlers_test package; new test files must use same package
 ---
+
+## 2026-01-22 19:45 UTC - US-024
+- Implemented loot table configuration system with admin endpoints
+- Added is_admin column to players table via migration
+- Created SQL queries for loot_tables and loot_table_entries CRUD operations
+- Generated Go models via sqlc
+- Added admin middleware requiring is_admin=1
+- Implemented RESTful endpoints: GET/POST/PUT/DELETE /admin/loot-tables and /admin/loot-tables/:id/entries
+- Updated test database setup to include is_admin column
+- Files changed: packages/go/db/migrations/20260122230000_players_add_is_admin.sql, packages/go/db/schema/schema.sql, packages/go/db/queries/loot_tables.sql, packages/go/db/queries/loot_table_entries.sql, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/middleware/admin.go, packages/go/server/pkg/handlers/loot_tables.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/auth_test.go, packages/go/server/pkg/middleware/auth_test.go, packages/go/server/pkg/auth/auth_service_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Admin system uses simple boolean column is_admin for simplicity
+  - Admin middleware must be applied after JWT middleware (requires authenticated player)
+  - Loot table entries use drop_chance for weighted probability (0-1 range)
+  - Validation ensures drop_chance and quantity ranges are reasonable
+  - Test database setup must match production schema exactly; update all test files when adding columns
+---

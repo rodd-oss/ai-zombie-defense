@@ -44,7 +44,8 @@ func setupTestDB(t *testing.T) *sql.DB {
     last_login_at TEXT,
     is_banned INTEGER NOT NULL DEFAULT 0,
     banned_reason TEXT,
-    banned_until TEXT
+    banned_until TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );`
 	if _, err := db.Exec(createTableSQL); err != nil {
 		t.Fatalf("Failed to create players table: %v", err)
@@ -97,6 +98,39 @@ func setupTestDB(t *testing.T) *sql.DB {
 	);`
 	if _, err := db.Exec(createCosmeticItemsSQL); err != nil {
 		t.Fatalf("Failed to create cosmetic_items table: %v", err)
+	}
+	// Create loot_tables table
+	createLootTablesSQL := `CREATE TABLE loot_tables (
+		loot_table_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		drop_chance REAL NOT NULL,
+		is_active INTEGER NOT NULL DEFAULT 1,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+	);`
+	if _, err := db.Exec(createLootTablesSQL); err != nil {
+		t.Fatalf("Failed to create loot_tables table: %v", err)
+	}
+	// Create loot_table_entries table
+	createLootTableEntriesSQL := `CREATE TABLE loot_table_entries (
+		loot_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		loot_table_id INTEGER NOT NULL,
+		cosmetic_id INTEGER NOT NULL,
+		weight INTEGER NOT NULL,
+		min_quantity INTEGER NOT NULL DEFAULT 1,
+		max_quantity INTEGER NOT NULL DEFAULT 1,
+		FOREIGN KEY (loot_table_id) REFERENCES loot_tables (loot_table_id) ON DELETE CASCADE,
+		FOREIGN KEY (cosmetic_id) REFERENCES cosmetic_items (cosmetic_id) ON DELETE CASCADE
+	);`
+	if _, err := db.Exec(createLootTableEntriesSQL); err != nil {
+		t.Fatalf("Failed to create loot_table_entries table: %v", err)
+	}
+	// Create indexes for loot_table_entries
+	if _, err := db.Exec(`CREATE INDEX idx_loot_table_entries_loot_table_id ON loot_table_entries (loot_table_id)`); err != nil {
+		t.Fatalf("Failed to create loot_table_entries index: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_loot_table_entries_cosmetic_id ON loot_table_entries (cosmetic_id)`); err != nil {
+		t.Fatalf("Failed to create loot_table_entries index: %v", err)
 	}
 	// Create player_cosmetics table
 	createPlayerCosmeticsSQL := `CREATE TABLE player_cosmetics (
@@ -696,5 +730,88 @@ func TestAuthService_AddMatchRewards(t *testing.T) {
 	// Level may have increased if XP >= BaseXPPerLevel (1000). With 950 XP, level should still be 1
 	if progression.Level != 1 {
 		t.Errorf("Expected level 1 with %d XP, got %d", expectedXP, progression.Level)
+	}
+}
+
+func TestGenerateLootDrop(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cfg := newTestConfig()
+	service := auth.NewService(cfg, logger, db)
+
+	ctx := context.Background()
+
+	// Insert a player
+	password := "password"
+	hash, err := service.HashPassword(password)
+	if err != nil {
+		t.Fatalf("Failed to hash password: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO players (username, email, password_hash) VALUES (?, ?, ?)`,
+		"testplayer", "test@example.com", hash)
+	if err != nil {
+		t.Fatalf("Failed to insert player: %v", err)
+	}
+	var playerID int64
+	err = db.QueryRow(`SELECT player_id FROM players WHERE username = ?`, "testplayer").Scan(&playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player ID: %v", err)
+	}
+
+	// Insert a cosmetic item
+	_, err = db.Exec(`INSERT INTO cosmetic_items (name, slot, rarity, unlock_level, data_cost) VALUES (?, ?, ?, ?, ?)`,
+		"Test Skin", "character_skin", "rare", 1, 0)
+	if err != nil {
+		t.Fatalf("Failed to insert cosmetic item: %v", err)
+	}
+	var cosmeticID int64
+	err = db.QueryRow(`SELECT cosmetic_id FROM cosmetic_items WHERE name = ?`, "Test Skin").Scan(&cosmeticID)
+	if err != nil {
+		t.Fatalf("Failed to get cosmetic ID: %v", err)
+	}
+
+	// Insert loot table with 100% drop chance
+	_, err = db.Exec(`INSERT INTO loot_tables (name, drop_chance, is_active) VALUES (?, ?, ?)`,
+		"Test Loot Table", 1.0, 1)
+	if err != nil {
+		t.Fatalf("Failed to insert loot table: %v", err)
+	}
+	var lootTableID int64
+	err = db.QueryRow(`SELECT loot_table_id FROM loot_tables WHERE name = ?`, "Test Loot Table").Scan(&lootTableID)
+	if err != nil {
+		t.Fatalf("Failed to get loot table ID: %v", err)
+	}
+
+	// Insert loot table entry with weight 100
+	_, err = db.Exec(`INSERT INTO loot_table_entries (loot_table_id, cosmetic_id, weight, min_quantity, max_quantity) VALUES (?, ?, ?, ?, ?)`,
+		lootTableID, cosmeticID, 100, 1, 1)
+	if err != nil {
+		t.Fatalf("Failed to insert loot table entry: %v", err)
+	}
+
+	// Generate loot drop
+	cosmetic, err := service.GenerateLootDrop(ctx, playerID)
+	if err != nil {
+		t.Fatalf("GenerateLootDrop failed: %v", err)
+	}
+
+	// Verify cosmetic matches
+	if cosmetic.CosmeticID != cosmeticID {
+		t.Errorf("Expected cosmetic ID %d, got %d", cosmeticID, cosmetic.CosmeticID)
+	}
+	if cosmetic.Name != "Test Skin" {
+		t.Errorf("Expected cosmetic name 'Test Skin', got %s", cosmetic.Name)
+	}
+
+	// Verify player owns cosmetic
+	var unlockedVia string
+	err = db.QueryRow(`SELECT unlocked_via FROM player_cosmetics WHERE player_id = ? AND cosmetic_id = ?`, playerID, cosmeticID).Scan(&unlockedVia)
+	if err != nil {
+		t.Fatalf("Failed to query player_cosmetics: %v", err)
+	}
+	if unlockedVia != "loot_drop" {
+		t.Errorf("Expected unlocked_via 'loot_drop', got %s", unlockedVia)
 	}
 }

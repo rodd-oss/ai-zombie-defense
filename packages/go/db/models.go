@@ -117,6 +117,7 @@ type Player struct {
 	IsBanned     int64               `json:"is_banned"`
 	BannedReason *string             `json:"banned_reason"`
 	BannedUntil  types.NullTimestamp `json:"banned_until"`
+	IsAdmin      int64               `json:"is_admin"`
 }
 
 type PlayerCosmetic struct {

@@ -60,7 +60,8 @@ func setupTestDB(t *testing.T) *sql.DB {
     last_login_at TEXT,
     is_banned INTEGER NOT NULL DEFAULT 0,
     banned_reason TEXT,
-    banned_until TEXT
+    banned_until TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );`
 	if _, err := db.Exec(createTableSQL); err != nil {
 		t.Fatalf("Failed to create players table: %v", err)
@@ -105,13 +106,33 @@ func setupTestDB(t *testing.T) *sql.DB {
     total_waves_survived INTEGER NOT NULL DEFAULT 0,
     total_kills INTEGER NOT NULL DEFAULT 0,
     total_deaths INTEGER NOT NULL DEFAULT 0,
-    total_scrap_earned INTEGER NOT NULL DEFAULT 0,
-    total_data_earned INTEGER NOT NULL DEFAULT 0,
-    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+	total_scrap_earned INTEGER NOT NULL DEFAULT 0,
+	total_data_earned INTEGER NOT NULL DEFAULT 0,
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+	FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
 );`
 	if _, err := db.Exec(createProgressionSQL); err != nil {
 		t.Fatalf("Failed to create player_progression table: %v", err)
+	}
+	// Create currency_transactions table
+	createCurrencyTransactionsSQL := `CREATE TABLE currency_transactions (
+		transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		player_id INTEGER NOT NULL,
+		amount INTEGER NOT NULL,
+		balance_after INTEGER NOT NULL,
+		transaction_type TEXT NOT NULL CHECK (transaction_type IN ('match_reward', 'purchase', 'prestige_reward', 'admin_grant', 'refund', 'other')),
+		reference_id INTEGER,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+	);`
+	if _, err := db.Exec(createCurrencyTransactionsSQL); err != nil {
+		t.Fatalf("Failed to create currency_transactions table: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_currency_transactions_player_id ON currency_transactions (player_id);`); err != nil {
+		t.Fatalf("Failed to create currency_transactions player_id index: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_currency_transactions_created_at ON currency_transactions (created_at);`); err != nil {
+		t.Fatalf("Failed to create currency_transactions created_at index: %v", err)
 	}
 	// Create cosmetic_items table
 	createCosmeticItemsSQL := `CREATE TABLE cosmetic_items (
@@ -128,6 +149,39 @@ func setupTestDB(t *testing.T) *sql.DB {
 	);`
 	if _, err := db.Exec(createCosmeticItemsSQL); err != nil {
 		t.Fatalf("Failed to create cosmetic_items table: %v", err)
+	}
+	// Create loot_tables table
+	createLootTablesSQL := `CREATE TABLE loot_tables (
+		loot_table_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		drop_chance REAL NOT NULL,
+		is_active INTEGER NOT NULL DEFAULT 1,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+	);`
+	if _, err := db.Exec(createLootTablesSQL); err != nil {
+		t.Fatalf("Failed to create loot_tables table: %v", err)
+	}
+	// Create loot_table_entries table
+	createLootTableEntriesSQL := `CREATE TABLE loot_table_entries (
+		loot_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		loot_table_id INTEGER NOT NULL,
+		cosmetic_id INTEGER NOT NULL,
+		weight INTEGER NOT NULL,
+		min_quantity INTEGER NOT NULL DEFAULT 1,
+		max_quantity INTEGER NOT NULL DEFAULT 1,
+		FOREIGN KEY (loot_table_id) REFERENCES loot_tables (loot_table_id) ON DELETE CASCADE,
+		FOREIGN KEY (cosmetic_id) REFERENCES cosmetic_items (cosmetic_id) ON DELETE CASCADE
+	);`
+	if _, err := db.Exec(createLootTableEntriesSQL); err != nil {
+		t.Fatalf("Failed to create loot_table_entries table: %v", err)
+	}
+	// Create indexes for loot_table_entries
+	if _, err := db.Exec(`CREATE INDEX idx_loot_table_entries_loot_table_id ON loot_table_entries (loot_table_id)`); err != nil {
+		t.Fatalf("Failed to create loot_table_entries index: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_loot_table_entries_cosmetic_id ON loot_table_entries (cosmetic_id)`); err != nil {
+		t.Fatalf("Failed to create loot_table_entries index: %v", err)
 	}
 	// Create player_cosmetics table
 	createPlayerCosmeticsSQL := `CREATE TABLE player_cosmetics (

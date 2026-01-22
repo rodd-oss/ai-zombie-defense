@@ -36,7 +36,7 @@ func (q *Queries) DeletePlayer(ctx context.Context, db DBTX, playerID int64) err
 }
 
 const getPlayer = `-- name: GetPlayer :one
-SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until FROM players WHERE player_id = ?
+SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until, is_admin FROM players WHERE player_id = ?
 `
 
 func (q *Queries) GetPlayer(ctx context.Context, db DBTX, playerID int64) (*Player, error) {
@@ -52,12 +52,13 @@ func (q *Queries) GetPlayer(ctx context.Context, db DBTX, playerID int64) (*Play
 		&i.IsBanned,
 		&i.BannedReason,
 		&i.BannedUntil,
+		&i.IsAdmin,
 	)
 	return &i, err
 }
 
 const getPlayerByEmail = `-- name: GetPlayerByEmail :one
-SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until FROM players WHERE email = ?
+SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until, is_admin FROM players WHERE email = ?
 `
 
 func (q *Queries) GetPlayerByEmail(ctx context.Context, db DBTX, email string) (*Player, error) {
@@ -73,12 +74,13 @@ func (q *Queries) GetPlayerByEmail(ctx context.Context, db DBTX, email string) (
 		&i.IsBanned,
 		&i.BannedReason,
 		&i.BannedUntil,
+		&i.IsAdmin,
 	)
 	return &i, err
 }
 
 const getPlayerByUsername = `-- name: GetPlayerByUsername :one
-SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until FROM players WHERE username = ?
+SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until, is_admin FROM players WHERE username = ?
 `
 
 func (q *Queries) GetPlayerByUsername(ctx context.Context, db DBTX, username string) (*Player, error) {
@@ -94,12 +96,13 @@ func (q *Queries) GetPlayerByUsername(ctx context.Context, db DBTX, username str
 		&i.IsBanned,
 		&i.BannedReason,
 		&i.BannedUntil,
+		&i.IsAdmin,
 	)
 	return &i, err
 }
 
 const listPlayers = `-- name: ListPlayers :many
-SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until FROM players ORDER BY username
+SELECT player_id, username, email, password_hash, created_at, last_login_at, is_banned, banned_reason, banned_until, is_admin FROM players ORDER BY username
 `
 
 func (q *Queries) ListPlayers(ctx context.Context, db DBTX) ([]*Player, error) {
@@ -121,6 +124,7 @@ func (q *Queries) ListPlayers(ctx context.Context, db DBTX) ([]*Player, error) {
 			&i.IsBanned,
 			&i.BannedReason,
 			&i.BannedUntil,
+			&i.IsAdmin,
 		); err != nil {
 			return nil, err
 		}
