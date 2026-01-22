@@ -23,3 +23,11 @@
 - Call `migrations.RunMigrations(db)` on application startup
 - The `migrations` package is located at `pkg/migrations`
 - Ensure database connection is established before running migrations
+
+## Database Connection Pooling
+
+- Use `database.OpenDB(path)` from `pkg/database` for production connections
+- Default pool settings: MaxOpenConns=5, MaxIdleConns=2, ConnMaxLifetime=5m, ConnMaxIdleTime=2m
+- Foreign keys and WAL mode are automatically enabled
+- For testing, use `database.OpenInMemory()` which uses the same settings
+- The connection pool is shared across the application via `*sql.DB` instance
