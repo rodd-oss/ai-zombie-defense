@@ -94,6 +94,11 @@ func (s *Server) registerRoutes() {
 		matchesGroup := s.app.Group("/matches", middleware.AuthMiddleware(authService, s.logger))
 		matchesGroup.Post("/", accountHandlers.StoreMatch)
 		matchesGroup.Get("/history", accountHandlers.GetMatchHistory)
+
+		// Server registration (public)
+		serverHandlers := handlers.NewServerHandlers(authService, s.logger)
+		serversGroup := s.app.Group("/servers")
+		serversGroup.Post("/register", serverHandlers.RegisterServer)
 	}
 }
 

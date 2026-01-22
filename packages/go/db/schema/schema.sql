@@ -115,6 +115,7 @@ CREATE TABLE servers (
     server_id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip_address TEXT NOT NULL,
     port INTEGER NOT NULL,
+    auth_token TEXT UNIQUE,
     name TEXT NOT NULL,
     map_rotation TEXT,
     max_players INTEGER NOT NULL,
@@ -125,6 +126,7 @@ CREATE TABLE servers (
     version TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+CREATE UNIQUE INDEX idx_servers_auth_token ON servers(auth_token);
 
 CREATE TABLE matches (
     match_id INTEGER PRIMARY KEY AUTOINCREMENT,

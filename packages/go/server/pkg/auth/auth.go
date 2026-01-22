@@ -846,3 +846,31 @@ func (s *Service) GetPlayerMatchHistory(ctx context.Context, playerID int64, lim
 	}
 	return matches, nil
 }
+
+// RegisterServer registers a new dedicated server and returns authentication token.
+func (s *Service) RegisterServer(ctx context.Context, ipAddress string, port int64, name string, mapRotation *string, maxPlayers int64, region *string, version *string) (*db.Server, string, error) {
+	// Generate random authentication token (hex)
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, "", fmt.Errorf("failed to generate random token: %w", err)
+	}
+	authToken := hex.EncodeToString(tokenBytes)
+
+	params := &db.CreateServerParams{
+		IpAddress:   ipAddress,
+		Port:        port,
+		AuthToken:   &authToken,
+		Name:        name,
+		MapRotation: mapRotation,
+		MaxPlayers:  maxPlayers,
+		Region:      region,
+		Version:     version,
+	}
+
+	server, err := s.queries.CreateServer(ctx, s.dbConn, params)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create server: %w", err)
+	}
+
+	return server, authToken, nil
+}

@@ -293,8 +293,8 @@
         "Tests pass"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Server registration endpoint implemented with auth_token column migration."
     },
     {
       "id": "US-020",

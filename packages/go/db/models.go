@@ -163,6 +163,7 @@ type Server struct {
 	ServerID       int64           `json:"server_id"`
 	IpAddress      string          `json:"ip_address"`
 	Port           int64           `json:"port"`
+	AuthToken      *string         `json:"auth_token"`
 	Name           string          `json:"name"`
 	MapRotation    *string         `json:"map_rotation"`
 	MaxPlayers     int64           `json:"max_players"`
