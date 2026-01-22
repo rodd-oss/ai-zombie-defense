@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-zombie-defense/db"
+	"ai-zombie-defense/db/types"
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/middleware"
 
@@ -73,6 +74,35 @@ type UpdateSettingsRequest struct {
 	UiScale          *float64 `json:"ui_scale"`
 	ColorBlindMode   int64    `json:"color_blind_mode"`
 	SubtitlesEnabled int64    `json:"subtitles_enabled"`
+}
+
+type PlayerMatchStatsRequest struct {
+	PlayerID           int64 `json:"player_id"`
+	WavesSurvived      int64 `json:"waves_survived"`
+	ZombiesKilled      int64 `json:"zombies_killed"`
+	Deaths             int64 `json:"deaths"`
+	ScrapEarned        int64 `json:"scrap_earned"`
+	DataEarned         int64 `json:"data_earned"`
+	DamageDealt        int64 `json:"damage_dealt"`
+	DamageTaken        int64 `json:"damage_taken"`
+	BuildingsBuilt     int64 `json:"buildings_built"`
+	BuildingsDestroyed int64 `json:"buildings_destroyed"`
+	HealingGiven       int64 `json:"healing_given"`
+	Revives            int64 `json:"revives"`
+	Score              int64 `json:"score"`
+}
+
+type StoreMatchRequest struct {
+	ServerID           int64                     `json:"server_id"`
+	MapName            string                    `json:"map_name"`
+	GameMode           string                    `json:"game_mode"`
+	StartTime          types.Timestamp           `json:"start_time"`
+	EndTime            *types.NullTimestamp      `json:"end_time,omitempty"`
+	Outcome            string                    `json:"outcome"`
+	WavesSurvived      int64                     `json:"waves_survived"`
+	TotalZombiesKilled int64                     `json:"total_zombies_killed"`
+	TotalPlayers       int64                     `json:"total_players"`
+	PlayerStats        []PlayerMatchStatsRequest `json:"player_stats"`
 }
 
 // GetProfile handles GET /account/profile
@@ -361,4 +391,195 @@ func (h *AccountHandlers) GetPlayerCosmetics(c *fiber.Ctx) error {
 		})
 	}
 	return c.Status(fiber.StatusOK).JSON(items)
+}
+
+// EquipCosmetic handles PUT /cosmetics/equip
+func (h *AccountHandlers) EquipCosmetic(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	var req struct {
+		CosmeticID int64 `json:"cosmetic_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+	if req.CosmeticID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "cosmetic_id must be positive",
+		})
+	}
+	ctx := c.Context()
+	err := h.service.EquipCosmetic(ctx, playerID, req.CosmeticID)
+	if err != nil {
+		if err == auth.ErrCosmeticNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "cosmetic not found",
+			})
+		}
+		if err == auth.ErrCosmeticNotOwned {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "cosmetic not owned",
+			})
+		}
+		if err == auth.ErrLoadoutNotFound {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "loadout not found",
+			})
+		}
+		h.logger.Error("failed to equip cosmetic", zap.Error(err), zap.Int64("player_id", playerID), zap.Int64("cosmetic_id", req.CosmeticID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "cosmetic equipped successfully",
+	})
+}
+
+// StoreMatch handles POST /matches
+func (h *AccountHandlers) StoreMatch(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	var req StoreMatchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+
+	// Validate required fields
+	if req.ServerID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "server_id must be positive",
+		})
+	}
+	if req.MapName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "map_name is required",
+		})
+	}
+	if req.GameMode == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "game_mode is required",
+		})
+	}
+	if req.Outcome == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "outcome is required",
+		})
+	}
+	if req.TotalPlayers <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "total_players must be positive",
+		})
+	}
+	if len(req.PlayerStats) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "player_stats cannot be empty",
+		})
+	}
+
+	// Build match params
+	matchParams := &db.CreateMatchParams{
+		ServerID:           req.ServerID,
+		MapName:            req.MapName,
+		GameMode:           req.GameMode,
+		StartTime:          req.StartTime,
+		EndTime:            types.NullTimestamp{},
+		Outcome:            req.Outcome,
+		WavesSurvived:      req.WavesSurvived,
+		TotalZombiesKilled: req.TotalZombiesKilled,
+		TotalPlayers:       req.TotalPlayers,
+	}
+	if req.EndTime != nil {
+		matchParams.EndTime = *req.EndTime
+	}
+
+	// Convert player stats
+	playerStats := make([]*db.CreatePlayerMatchStatsParams, 0, len(req.PlayerStats))
+	for _, ps := range req.PlayerStats {
+		if ps.PlayerID <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "player_stats.player_id must be positive",
+			})
+		}
+		playerStats = append(playerStats, &db.CreatePlayerMatchStatsParams{
+			PlayerID:           ps.PlayerID,
+			MatchID:            0, // will be set by service
+			WavesSurvived:      ps.WavesSurvived,
+			ZombiesKilled:      ps.ZombiesKilled,
+			Deaths:             ps.Deaths,
+			ScrapEarned:        ps.ScrapEarned,
+			DataEarned:         ps.DataEarned,
+			DamageDealt:        ps.DamageDealt,
+			DamageTaken:        ps.DamageTaken,
+			BuildingsBuilt:     ps.BuildingsBuilt,
+			BuildingsDestroyed: ps.BuildingsDestroyed,
+			HealingGiven:       ps.HealingGiven,
+			Revives:            ps.Revives,
+			Score:              ps.Score,
+		})
+	}
+
+	ctx := c.Context()
+	err := h.service.StoreMatchWithStats(ctx, req.ServerID, matchParams, playerStats)
+	if err != nil {
+		if err == auth.ErrServerNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "server not found",
+			})
+		}
+		h.logger.Error("failed to store match", zap.Error(err), zap.Int64("player_id", playerID), zap.Int64("server_id", req.ServerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "match stored successfully",
+	})
+}
+
+// GetMatchHistory handles GET /matches/history
+func (h *AccountHandlers) GetMatchHistory(c *fiber.Ctx) error {
+	playerID, ok := middleware.GetPlayerID(c)
+	if !ok {
+		h.logger.Error("player ID missing from context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	// Parse limit query parameter (default 10, max 100)
+	limit := c.QueryInt("limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	ctx := c.Context()
+	matches, err := h.service.GetPlayerMatchHistory(ctx, playerID, int32(limit))
+	if err != nil {
+		h.logger.Error("failed to get match history", zap.Error(err), zap.Int64("player_id", playerID))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(matches)
 }

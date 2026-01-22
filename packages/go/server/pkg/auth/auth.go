@@ -27,6 +27,11 @@ var (
 	ErrDuplicateEmail      = errors.New("email already exists")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrSessionNotFound     = errors.New("session not found")
+	ErrCosmeticNotFound    = errors.New("cosmetic not found")
+	ErrCosmeticNotOwned    = errors.New("cosmetic not owned")
+	ErrLoadoutNotFound     = errors.New("loadout not found")
+	ErrMatchNotFound       = errors.New("match not found")
+	ErrServerNotFound      = errors.New("server not found")
 )
 
 type Service struct {
@@ -676,4 +681,168 @@ func (s *Service) PrestigePlayer(ctx context.Context, playerID int64) error {
 		zap.Int64("new_prestige_level", progression.PrestigeLevel),
 		zap.Int("cosmetics_granted", len(cosmetics)))
 	return nil
+}
+
+// EquipCosmetic equips a cosmetic item to the player's active loadout.
+func (s *Service) EquipCosmetic(ctx context.Context, playerID int64, cosmeticID int64) error {
+	// Get cosmetic item to determine slot
+	cosmetic, err := s.queries.GetCosmeticItem(ctx, s.dbConn, cosmeticID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCosmeticNotFound
+		}
+		return fmt.Errorf("failed to get cosmetic item: %w", err)
+	}
+
+	// Verify player owns the cosmetic
+	_, err = s.queries.GetPlayerCosmetic(ctx, s.dbConn, &db.GetPlayerCosmeticParams{
+		PlayerID:   playerID,
+		CosmeticID: cosmeticID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCosmeticNotOwned
+		}
+		return fmt.Errorf("failed to check cosmetic ownership: %w", err)
+	}
+
+	// Get or create active loadout
+	loadout, err := s.queries.GetActiveLoadout(ctx, s.dbConn, playerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Create default loadout
+			params := &db.CreateLoadoutParams{
+				PlayerID: playerID,
+				Name:     "Default",
+				IsActive: 1,
+			}
+			err = s.queries.CreateLoadout(ctx, s.dbConn, params)
+			if err != nil {
+				return fmt.Errorf("failed to create default loadout: %w", err)
+			}
+			// Fetch newly created loadout (sqlite last_insert_rowid not directly available)
+			// We'll retrieve the active loadout again
+			loadout, err = s.queries.GetActiveLoadout(ctx, s.dbConn, playerID)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve created loadout: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to get active loadout: %w", err)
+		}
+	}
+
+	// Use transaction to ensure atomic replace
+	var dbTx db.DBTX
+	var tx *sql.Tx
+	if db, ok := s.dbConn.(*sql.DB); ok {
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		dbTx = tx
+	} else {
+		// Already a transaction or other DBTX; use directly without transaction
+		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
+		dbTx = s.dbConn
+	}
+
+	// Remove any existing cosmetic in the same slot for this loadout
+	err = s.queries.DeleteLoadoutCosmeticBySlot(ctx, dbTx, &db.DeleteLoadoutCosmeticBySlotParams{
+		LoadoutID: loadout.LoadoutID,
+		Slot:      cosmetic.Slot,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clear slot: %w", err)
+	}
+
+	// Insert new mapping
+	err = s.queries.InsertLoadoutCosmetic(ctx, dbTx, &db.InsertLoadoutCosmeticParams{
+		LoadoutID:  loadout.LoadoutID,
+		CosmeticID: cosmeticID,
+		Slot:       cosmetic.Slot,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to equip cosmetic: %w", err)
+	}
+
+	// Commit transaction if we started one
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+	}
+
+	s.logger.Info("Cosmetic equipped successfully",
+		zap.Int64("player_id", playerID),
+		zap.Int64("cosmetic_id", cosmeticID),
+		zap.Int64("loadout_id", loadout.LoadoutID),
+		zap.String("slot", cosmetic.Slot))
+	return nil
+}
+
+// StoreMatchWithStats creates a new match record and associated player statistics.
+// It uses a transaction to ensure atomicity.
+func (s *Service) StoreMatchWithStats(ctx context.Context, serverID int64, matchParams *db.CreateMatchParams, playerStats []*db.CreatePlayerMatchStatsParams) error {
+	// Ensure matchParams.ServerID matches the provided serverID
+	if matchParams.ServerID != serverID {
+		return fmt.Errorf("server ID mismatch: expected %d, got %d", serverID, matchParams.ServerID)
+	}
+
+	// Start transaction
+	var dbTx db.DBTX
+	var tx *sql.Tx
+	var err error
+	if db, ok := s.dbConn.(*sql.DB); ok {
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		dbTx = tx
+	} else {
+		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
+		dbTx = s.dbConn
+	}
+
+	// Create match
+	match, err := s.queries.CreateMatch(ctx, dbTx, matchParams)
+	if err != nil {
+		return fmt.Errorf("failed to create match: %w", err)
+	}
+
+	// Insert player stats
+	for _, stats := range playerStats {
+		// Ensure stats.MatchID matches the created match
+		stats.MatchID = match.MatchID
+		_, err := s.queries.CreatePlayerMatchStats(ctx, dbTx, stats)
+		if err != nil {
+			return fmt.Errorf("failed to create player match stats: %w", err)
+		}
+	}
+
+	// Commit transaction if we started one
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+	}
+
+	s.logger.Info("Match stored successfully",
+		zap.Int64("match_id", match.MatchID),
+		zap.Int64("server_id", serverID),
+		zap.Int("player_count", len(playerStats)))
+	return nil
+}
+
+// GetPlayerMatchHistory retrieves a player's recent matches with their personal statistics.
+func (s *Service) GetPlayerMatchHistory(ctx context.Context, playerID int64, limit int32) ([]*db.GetPlayerMatchHistoryRow, error) {
+	matches, err := s.queries.GetPlayerMatchHistory(ctx, s.dbConn, &db.GetPlayerMatchHistoryParams{
+		PlayerID: playerID,
+		Limit:    int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get player match history: %w", err)
+	}
+	return matches, nil
 }

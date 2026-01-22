@@ -88,6 +88,12 @@ func (s *Server) registerRoutes() {
 		cosmeticsGroup := s.app.Group("/cosmetics", middleware.AuthMiddleware(authService, s.logger))
 		cosmeticsGroup.Get("/catalog", accountHandlers.GetCosmeticCatalog)
 		cosmeticsGroup.Get("/owned", accountHandlers.GetPlayerCosmetics)
+		cosmeticsGroup.Put("/equip", accountHandlers.EquipCosmetic)
+
+		// Matches routes (protected by JWT middleware)
+		matchesGroup := s.app.Group("/matches", middleware.AuthMiddleware(authService, s.logger))
+		matchesGroup.Post("/", accountHandlers.StoreMatch)
+		matchesGroup.Get("/history", accountHandlers.GetMatchHistory)
 	}
 }
 

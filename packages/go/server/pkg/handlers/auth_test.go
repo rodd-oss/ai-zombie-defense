@@ -146,6 +146,95 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(`CREATE INDEX idx_player_cosmetics_cosmetic_id ON player_cosmetics (cosmetic_id)`); err != nil {
 		t.Fatalf("Failed to create player_cosmetics index: %v", err)
 	}
+	// Create loadouts table
+	if _, err := db.Exec(`CREATE TABLE loadouts (
+    loadout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+);`); err != nil {
+		t.Fatalf("Failed to create loadouts table: %v", err)
+	}
+	// Create loadout_cosmetics table
+	if _, err := db.Exec(`CREATE TABLE loadout_cosmetics (
+    loadout_id INTEGER NOT NULL,
+    cosmetic_id INTEGER NOT NULL,
+    slot TEXT NOT NULL CHECK (slot IN ('character_skin', 'weapon_skin', 'emote', 'taunt', 'badge', 'title', 'particle_effect', 'other')),
+    PRIMARY KEY (loadout_id, cosmetic_id),
+    FOREIGN KEY (loadout_id) REFERENCES loadouts (loadout_id) ON DELETE CASCADE,
+    FOREIGN KEY (cosmetic_id) REFERENCES cosmetic_items (cosmetic_id) ON DELETE CASCADE
+);`); err != nil {
+		t.Fatalf("Failed to create loadout_cosmetics table: %v", err)
+	}
+	// Create index on loadout_cosmetics cosmetic_id
+	if _, err := db.Exec(`CREATE INDEX idx_loadout_cosmetics_cosmetic_id ON loadout_cosmetics (cosmetic_id)`); err != nil {
+		t.Fatalf("Failed to create loadout_cosmetics index: %v", err)
+	}
+	// Create servers table
+	if _, err := db.Exec(`CREATE TABLE servers (
+    server_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    map_rotation TEXT,
+    max_players INTEGER NOT NULL,
+    current_players INTEGER NOT NULL DEFAULT 0,
+    is_online INTEGER NOT NULL DEFAULT 0,
+    last_heartbeat TEXT,
+    region TEXT,
+    version TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);`); err != nil {
+		t.Fatalf("Failed to create servers table: %v", err)
+	}
+	// Create matches table
+	if _, err := db.Exec(`CREATE TABLE matches (
+    match_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id INTEGER NOT NULL,
+    map_name TEXT NOT NULL,
+    game_mode TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT,
+    outcome TEXT NOT NULL CHECK (outcome IN ('completed', 'failed', 'abandoned')),
+    waves_survived INTEGER NOT NULL DEFAULT 0,
+    total_zombies_killed INTEGER NOT NULL DEFAULT 0,
+    total_players INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (server_id) REFERENCES servers (server_id) ON DELETE CASCADE
+);`); err != nil {
+		t.Fatalf("Failed to create matches table: %v", err)
+	}
+	// Create player_match_stats table
+	if _, err := db.Exec(`CREATE TABLE player_match_stats (
+    player_id INTEGER NOT NULL,
+    match_id INTEGER NOT NULL,
+    waves_survived INTEGER NOT NULL DEFAULT 0,
+    zombies_killed INTEGER NOT NULL DEFAULT 0,
+    deaths INTEGER NOT NULL DEFAULT 0,
+    scrap_earned INTEGER NOT NULL DEFAULT 0,
+    data_earned INTEGER NOT NULL DEFAULT 0,
+    damage_dealt INTEGER NOT NULL DEFAULT 0,
+    damage_taken INTEGER NOT NULL DEFAULT 0,
+    buildings_built INTEGER NOT NULL DEFAULT 0,
+    buildings_destroyed INTEGER NOT NULL DEFAULT 0,
+    healing_given INTEGER NOT NULL DEFAULT 0,
+    revives INTEGER NOT NULL DEFAULT 0,
+    score INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (player_id, match_id),
+    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE,
+    FOREIGN KEY (match_id) REFERENCES matches (match_id) ON DELETE CASCADE
+);`); err != nil {
+		t.Fatalf("Failed to create player_match_stats table: %v", err)
+	}
+	// Create indexes for matches and player_match_stats
+	if _, err := db.Exec(`CREATE INDEX idx_matches_server_id ON matches (server_id);`); err != nil {
+		t.Fatalf("Failed to create matches index: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_player_match_stats_match_id ON player_match_stats (match_id);`); err != nil {
+		t.Fatalf("Failed to create player_match_stats index: %v", err)
+	}
 	return db
 }
 

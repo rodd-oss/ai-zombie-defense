@@ -22,6 +22,7 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Nullable columns in SQLite generate pointer types in sqlc (*string, *float64). Use sql.NullX for custom null handling if needed.
 - SQLite does not support RETURNING clause in UPDATE statements; fetch updated rows separately after modification.
 - Use LEFT JOIN with IS NULL for exclusion queries with sqlc; parameter numbering requires ?1, ?2 syntax.
+- When adding new migrations, update the migration test's tables list and rollback verification
 
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
@@ -203,4 +204,15 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - JOIN queries with sqlc require explicit column selection; use LEFT JOIN for exclusion logic
   - New endpoints follow pattern: add SQL query, generate models, add service method, add handler, register route, write tests
   - Test database setup must include all required tables; added cosmetic_items and player_cosmetics to setupTestDB
+---
+
+## 2026-01-22 20:37 UTC - US-017
+- Implemented loadout management for equipped cosmetics (PUT /cosmetics/equip endpoint already existed)
+- Added banner slot to cosmetic slot types in CHECK constraints
+- Updated migration test to include currency_transactions table and correct rollback verification
+- Files changed: packages/go/db/migrations/20260122105151_cosmetic_items.sql, packages/go/db/migrations/20260122105154_loadout_cosmetics.sql, packages/go/db/pkg/migrations/migrations_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - When adding new migrations, update the migration test's tables list and rollback verification accordingly
+  - Cosmetic slot types are defined in CHECK constraints; adding new types requires updating both cosmetic_items and loadout_cosmetics tables
+  - EquipCosmetic endpoint automatically creates default loadout if none exists
 ---

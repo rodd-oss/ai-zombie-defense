@@ -10,6 +10,7 @@
   - Enable foreign keys with `PRAGMA foreign_keys = ON` on connection
   - Enable WAL mode for better concurrency: `PRAGMA journal_mode = WAL`
 - **Migration Testing**: Use in-memory SQLite database (`:memory:`) for fast migration tests
+- **Test Maintenance**: When adding new migrations, update the migration test's tables list and rollback verification
 
 ## Running Migrations
 

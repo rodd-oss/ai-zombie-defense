@@ -11,6 +11,53 @@ import (
 	"ai-zombie-defense/db/types"
 )
 
+const getPlayerCosmetic = `-- name: GetPlayerCosmetic :one
+SELECT ci.cosmetic_id, ci.name, ci.description, ci.slot, ci.category, ci.rarity, ci.unlock_level, ci.data_cost, ci.is_prestige_only, ci.created_at, pc.unlocked_at, pc.unlocked_via
+FROM cosmetic_items ci
+JOIN player_cosmetics pc ON ci.cosmetic_id = pc.cosmetic_id
+WHERE pc.player_id = ? AND pc.cosmetic_id = ?
+`
+
+type GetPlayerCosmeticParams struct {
+	PlayerID   int64 `json:"player_id"`
+	CosmeticID int64 `json:"cosmetic_id"`
+}
+
+type GetPlayerCosmeticRow struct {
+	CosmeticID     int64           `json:"cosmetic_id"`
+	Name           string          `json:"name"`
+	Description    *string         `json:"description"`
+	Slot           string          `json:"slot"`
+	Category       *string         `json:"category"`
+	Rarity         string          `json:"rarity"`
+	UnlockLevel    int64           `json:"unlock_level"`
+	DataCost       int64           `json:"data_cost"`
+	IsPrestigeOnly int64           `json:"is_prestige_only"`
+	CreatedAt      types.Timestamp `json:"created_at"`
+	UnlockedAt     types.Timestamp `json:"unlocked_at"`
+	UnlockedVia    string          `json:"unlocked_via"`
+}
+
+func (q *Queries) GetPlayerCosmetic(ctx context.Context, db DBTX, arg *GetPlayerCosmeticParams) (*GetPlayerCosmeticRow, error) {
+	row := db.QueryRowContext(ctx, getPlayerCosmetic, arg.PlayerID, arg.CosmeticID)
+	var i GetPlayerCosmeticRow
+	err := row.Scan(
+		&i.CosmeticID,
+		&i.Name,
+		&i.Description,
+		&i.Slot,
+		&i.Category,
+		&i.Rarity,
+		&i.UnlockLevel,
+		&i.DataCost,
+		&i.IsPrestigeOnly,
+		&i.CreatedAt,
+		&i.UnlockedAt,
+		&i.UnlockedVia,
+	)
+	return &i, err
+}
+
 const getPlayerCosmetics = `-- name: GetPlayerCosmetics :many
 SELECT ci.cosmetic_id, ci.name, ci.description, ci.slot, ci.category, ci.rarity, ci.unlock_level, ci.data_cost, ci.is_prestige_only, ci.created_at, pc.unlocked_at, pc.unlocked_via
 FROM cosmetic_items ci
