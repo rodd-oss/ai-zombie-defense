@@ -12,6 +12,19 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func newTestConfig() config.Config {
+	return config.Config{
+		JWT: config.JWTConfig{
+			Secret:            "test-secret",
+			AccessExpiration:  15 * 60 * 1_000_000_000,          // 15 minutes in nanoseconds
+			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days
+		},
+		Progression: config.ProgressionConfig{
+			BaseXPPerLevel: 1000,
+		},
+	}
+}
+
 func setupTestDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -50,6 +63,54 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(createSessionsSQL); err != nil {
 		t.Fatalf("Failed to create sessions table: %v", err)
 	}
+	// Create player_progression table
+	createProgressionSQL := `CREATE TABLE player_progression (
+    player_id INTEGER PRIMARY KEY,
+    level INTEGER NOT NULL DEFAULT 1,
+    experience INTEGER NOT NULL DEFAULT 0,
+    prestige_level INTEGER NOT NULL DEFAULT 0,
+    data_currency INTEGER NOT NULL DEFAULT 0,
+    total_matches_played INTEGER NOT NULL DEFAULT 0,
+    total_waves_survived INTEGER NOT NULL DEFAULT 0,
+    total_kills INTEGER NOT NULL DEFAULT 0,
+    total_deaths INTEGER NOT NULL DEFAULT 0,
+    total_scrap_earned INTEGER NOT NULL DEFAULT 0,
+    total_data_earned INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+);`
+	if _, err := db.Exec(createProgressionSQL); err != nil {
+		t.Fatalf("Failed to create player_progression table: %v", err)
+	}
+	// Create cosmetic_items table
+	createCosmeticItemsSQL := `CREATE TABLE cosmetic_items (
+		cosmetic_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		slot TEXT NOT NULL CHECK (slot IN ('character_skin', 'weapon_skin', 'emote', 'taunt', 'badge', 'title', 'particle_effect', 'other')),
+		category TEXT,
+		rarity TEXT NOT NULL CHECK (rarity IN ('common', 'uncommon', 'rare', 'epic', 'legendary')),
+		unlock_level INTEGER NOT NULL DEFAULT 1,
+		data_cost INTEGER NOT NULL DEFAULT 0,
+		is_prestige_only INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+	);`
+	if _, err := db.Exec(createCosmeticItemsSQL); err != nil {
+		t.Fatalf("Failed to create cosmetic_items table: %v", err)
+	}
+	// Create player_cosmetics table
+	createPlayerCosmeticsSQL := `CREATE TABLE player_cosmetics (
+		player_id INTEGER NOT NULL,
+		cosmetic_id INTEGER NOT NULL,
+		unlocked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+		unlocked_via TEXT NOT NULL CHECK (unlocked_via IN ('level_up', 'purchase', 'loot_drop', 'prestige')),
+		PRIMARY KEY (player_id, cosmetic_id),
+		FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE,
+		FOREIGN KEY (cosmetic_id) REFERENCES cosmetic_items (cosmetic_id) ON DELETE CASCADE
+	);`
+	if _, err := db.Exec(createPlayerCosmeticsSQL); err != nil {
+		t.Fatalf("Failed to create player_cosmetics table: %v", err)
+	}
 	return db
 }
 
@@ -58,13 +119,7 @@ func TestAuthService_Authenticate(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,          // 15 minutes in nanoseconds
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	// Hash a password
@@ -135,13 +190,7 @@ func TestAuthService_GenerateToken(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	playerID := int64(42)
@@ -168,13 +217,7 @@ func TestAuthService_RegisterPlayer(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	ctx := context.Background()
@@ -239,13 +282,7 @@ func TestAuthService_CreateSession(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	ctx := context.Background()
@@ -294,13 +331,7 @@ func TestAuthService_ValidateRefreshToken(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	ctx := context.Background()
@@ -351,13 +382,7 @@ func TestAuthService_RefreshSession(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	ctx := context.Background()
@@ -447,13 +472,7 @@ func TestAuthService_DeleteSession(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	cfg := config.Config{
-		JWT: config.JWTConfig{
-			Secret:            "test-secret",
-			AccessExpiration:  15 * 60 * 1_000_000_000,
-			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
-		},
-	}
+	cfg := newTestConfig()
 	service := auth.NewService(cfg, logger, db)
 
 	ctx := context.Background()
@@ -503,5 +522,179 @@ func TestAuthService_DeleteSession(t *testing.T) {
 	_, err = service.ValidateRefreshToken(ctx, token)
 	if err != auth.ErrInvalidRefreshToken && err != auth.ErrSessionNotFound {
 		t.Errorf("Expected ErrInvalidRefreshToken or ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestAuthService_AddExperience(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cfg := newTestConfig()
+	service := auth.NewService(cfg, logger, db)
+
+	ctx := context.Background()
+
+	// Insert a player
+	password := "password"
+	hash, err := service.HashPassword(password)
+	if err != nil {
+		t.Fatalf("Failed to hash password: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO players (username, email, password_hash) VALUES (?, ?, ?)`,
+		"testuser", "test@example.com", hash)
+	if err != nil {
+		t.Fatalf("Failed to insert player: %v", err)
+	}
+	var playerID int64
+	err = db.QueryRow(`SELECT player_id FROM players WHERE username = ?`, "testuser").Scan(&playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player ID: %v", err)
+	}
+
+	// Get initial progression (should be defaults)
+	progression, err := service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression: %v", err)
+	}
+	if progression.Level != 1 {
+		t.Errorf("Expected initial level 1, got %d", progression.Level)
+	}
+	if progression.Experience != 0 {
+		t.Errorf("Expected initial XP 0, got %d", progression.Experience)
+	}
+
+	// Add XP below level threshold (BaseXPPerLevel = 1000)
+	err = service.AddExperience(ctx, playerID, 500)
+	if err != nil {
+		t.Fatalf("AddExperience failed: %v", err)
+	}
+	progression, err = service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression after XP: %v", err)
+	}
+	if progression.Experience != 500 {
+		t.Errorf("Expected XP 500 after adding 500, got %d", progression.Experience)
+	}
+	if progression.Level != 1 {
+		t.Errorf("Expected level still 1 with 500 XP, got %d", progression.Level)
+	}
+
+	// Add XP to reach level 2 (total 1000 XP)
+	err = service.AddExperience(ctx, playerID, 500)
+	if err != nil {
+		t.Fatalf("AddExperience failed: %v", err)
+	}
+	progression, err = service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression after level up: %v", err)
+	}
+	if progression.Experience != 1000 {
+		t.Errorf("Expected XP 1000 after adding another 500, got %d", progression.Experience)
+	}
+	if progression.Level != 2 {
+		t.Errorf("Expected level 2 with 1000 XP, got %d", progression.Level)
+	}
+
+	// Add XP that spans multiple levels (add 2500 XP, total 3500, level should be 4)
+	err = service.AddExperience(ctx, playerID, 2500)
+	if err != nil {
+		t.Fatalf("AddExperience failed: %v", err)
+	}
+	progression, err = service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression after large XP: %v", err)
+	}
+	if progression.Experience != 3500 {
+		t.Errorf("Expected XP 3500 after adding 2500, got %d", progression.Experience)
+	}
+	if progression.Level != 4 {
+		t.Errorf("Expected level 4 with 3500 XP (BaseXPPerLevel=1000), got %d", progression.Level)
+	}
+}
+
+func TestAuthService_AddMatchRewards(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cfg := newTestConfig()
+	service := auth.NewService(cfg, logger, db)
+
+	ctx := context.Background()
+
+	// Insert a player
+	password := "password"
+	hash, err := service.HashPassword(password)
+	if err != nil {
+		t.Fatalf("Failed to hash password: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO players (username, email, password_hash) VALUES (?, ?, ?)`,
+		"testuser", "test@example.com", hash)
+	if err != nil {
+		t.Fatalf("Failed to insert player: %v", err)
+	}
+	var playerID int64
+	err = db.QueryRow(`SELECT player_id FROM players WHERE username = ?`, "testuser").Scan(&playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player ID: %v", err)
+	}
+
+	// Get initial progression
+	progression, err := service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression: %v", err)
+	}
+	initialMatches := progression.TotalMatchesPlayed
+	initialKills := progression.TotalKills
+	initialDataCurrency := progression.DataCurrency
+
+	// Add match rewards
+	kills := int64(10)
+	deaths := int64(2)
+	wavesSurvived := int64(5)
+	scrapEarned := int64(500)
+	dataEarned := int64(100)
+	err = service.AddMatchRewards(ctx, playerID, kills, deaths, wavesSurvived, scrapEarned, dataEarned)
+	if err != nil {
+		t.Fatalf("AddMatchRewards failed: %v", err)
+	}
+
+	// Verify progression after match
+	progression, err = service.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		t.Fatalf("Failed to get player progression after match: %v", err)
+	}
+	if progression.TotalMatchesPlayed != initialMatches+1 {
+		t.Errorf("Expected total matches played %d, got %d", initialMatches+1, progression.TotalMatchesPlayed)
+	}
+	if progression.TotalKills != initialKills+kills {
+		t.Errorf("Expected total kills %d, got %d", initialKills+kills, progression.TotalKills)
+	}
+	if progression.TotalDeaths != deaths {
+		t.Errorf("Expected total deaths %d, got %d", deaths, progression.TotalDeaths)
+	}
+	if progression.TotalWavesSurvived != wavesSurvived {
+		t.Errorf("Expected total waves survived %d, got %d", wavesSurvived, progression.TotalWavesSurvived)
+	}
+	if progression.TotalScrapEarned != scrapEarned {
+		t.Errorf("Expected total scrap earned %d, got %d", scrapEarned, progression.TotalScrapEarned)
+	}
+	if progression.TotalDataEarned != dataEarned {
+		t.Errorf("Expected total data earned %d, got %d", dataEarned, progression.TotalDataEarned)
+	}
+	// Data currency should increase by dataEarned
+	if progression.DataCurrency != initialDataCurrency+dataEarned {
+		t.Errorf("Expected data currency %d, got %d", initialDataCurrency+dataEarned, progression.DataCurrency)
+	}
+	// XP should have increased (calculated by AddMatchRewards)
+	// BaseXP=100, kills*10=100, waves*50=250, scrap*1=500 => total XP = 950
+	expectedXP := int64(100 + kills*10 + wavesSurvived*50 + scrapEarned*1)
+	if progression.Experience != expectedXP {
+		t.Errorf("Expected XP %d, got %d", expectedXP, progression.Experience)
+	}
+	// Level may have increased if XP >= BaseXPPerLevel (1000). With 950 XP, level should still be 1
+	if progression.Level != 1 {
+		t.Errorf("Expected level 1 with %d XP, got %d", expectedXP, progression.Level)
 	}
 }

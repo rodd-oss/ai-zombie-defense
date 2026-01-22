@@ -9,9 +9,10 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	Database DatabaseConfig
-	Server   ServerConfig
-	JWT      JWTConfig
+	Database    DatabaseConfig
+	Server      ServerConfig
+	JWT         JWTConfig
+	Progression ProgressionConfig
 }
 
 // DatabaseConfig holds database connection settings.
@@ -35,6 +36,12 @@ type JWTConfig struct {
 	Secret            string
 	AccessExpiration  time.Duration
 	RefreshExpiration time.Duration
+}
+
+// ProgressionConfig holds player progression settings.
+type ProgressionConfig struct {
+	// BaseXPPerLevel is the base XP required to reach the next level (linear scaling).
+	BaseXPPerLevel int
 }
 
 // LoadConfig loads configuration from environment variables and defaults.
@@ -76,6 +83,9 @@ func LoadConfig() (*Config, error) {
 			AccessExpiration:  v.GetDuration("jwt_access_expiration"),
 			RefreshExpiration: v.GetDuration("jwt_refresh_expiration"),
 		},
+		Progression: ProgressionConfig{
+			BaseXPPerLevel: v.GetInt("progression_base_xp_per_level"),
+		},
 	}
 
 	return cfg, nil
@@ -97,6 +107,9 @@ func setDefaults(v *viper.Viper) {
 	// JWT defaults
 	v.SetDefault("jwt_access_expiration", 15*time.Minute)
 	v.SetDefault("jwt_refresh_expiration", 7*24*time.Hour) // 7 days
+
+	// Progression defaults
+	v.SetDefault("progression_base_xp_per_level", 1000)
 }
 
 func bindEnv(v *viper.Viper) {
@@ -116,6 +129,9 @@ func bindEnv(v *viper.Viper) {
 	_ = v.BindEnv("jwt_secret", "JWT_SECRET")
 	_ = v.BindEnv("jwt_access_expiration", "JWT_ACCESS_EXPIRATION")
 	_ = v.BindEnv("jwt_refresh_expiration", "JWT_REFRESH_EXPIRATION")
+
+	// Progression
+	_ = v.BindEnv("progression_base_xp_per_level", "PROGRESSION_BASE_XP_PER_LEVEL")
 }
 
 func validateRequired(v *viper.Viper) error {

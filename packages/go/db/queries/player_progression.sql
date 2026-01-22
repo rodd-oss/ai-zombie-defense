@@ -47,3 +47,11 @@ SET total_matches_played = total_matches_played + ?,
     total_data_earned = total_data_earned + ?,
     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
 WHERE player_id = ?;
+
+-- name: PrestigePlayer :exec
+UPDATE player_progression
+SET level = 1,
+    experience = 0,
+    prestige_level = prestige_level + 1,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE player_id = ?;

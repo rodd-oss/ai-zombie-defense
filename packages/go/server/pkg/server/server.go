@@ -81,6 +81,7 @@ func (s *Server) registerRoutes() {
 		// Progression routes (protected by JWT middleware)
 		progressionGroup := s.app.Group("/progression", middleware.AuthMiddleware(authService, s.logger))
 		progressionGroup.Get("/", accountHandlers.GetProgression)
+		progressionGroup.Post("/prestige", accountHandlers.PrestigePlayer)
 	}
 }
 

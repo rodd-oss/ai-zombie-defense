@@ -20,6 +20,8 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Handle duplicate SQLite constraints by checking error strings; translate to user-friendly conflict errors
 - Use middleware.GetPlayerID(c) to retrieve authenticated player ID in protected handlers
 - Nullable columns in SQLite generate pointer types in sqlc (*string, *float64). Use sql.NullX for custom null handling if needed.
+- SQLite does not support RETURNING clause in UPDATE statements; fetch updated rows separately after modification.
+- Use LEFT JOIN with IS NULL for exclusion queries with sqlc; parameter numbering requires ?1, ?2 syntax.
 
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
@@ -177,4 +179,16 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Progression endpoint uses existing auth service method GetPlayerProgression which creates default row if missing
   - XP calculation uses config.BaseXPPerLevel for level thresholds; match reward XP is hardcoded but can be moved to config later
   - When adding new route groups, ensure JWT middleware is applied to the group
+---
+## 2026-01-22 19:05 UTC - US-014
+- Implemented POST /progression/prestige endpoint with JWT middleware protection
+- Added PrestigePlayer method to auth service with transaction support
+- Added SQL queries for prestige operation and cosmetic granting
+- Updated server routes to include POST /progression/prestige
+- Files changed: packages/go/db/queries/player_progression.sql, packages/go/db/queries/cosmetic_items.sql, packages/go/db/*.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/account.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/auth/auth_service_test.go (added cosmetic tables), scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - SQLite does not support RETURNING in UPDATE; need to fetch updated row separately
+  - Use LEFT JOIN for exclusion queries with sqlc parameter numbering
+  - Fiber handlers can reuse existing account handlers; no need for separate progression handler
+  - Prestige cosmetics are identified by is_prestige_only flag and unlock_level as prestige requirement
 ---

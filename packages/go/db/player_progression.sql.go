@@ -111,6 +111,20 @@ func (q *Queries) IncrementMatchStats(ctx context.Context, db DBTX, arg *Increme
 	return err
 }
 
+const prestigePlayer = `-- name: PrestigePlayer :exec
+UPDATE player_progression
+SET level = 1,
+    experience = 0,
+    prestige_level = prestige_level + 1,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE player_id = ?
+`
+
+func (q *Queries) PrestigePlayer(ctx context.Context, db DBTX, playerID int64) error {
+	_, err := db.ExecContext(ctx, prestigePlayer, playerID)
+	return err
+}
+
 const updateLevel = `-- name: UpdateLevel :exec
 UPDATE player_progression
 SET level = ?,

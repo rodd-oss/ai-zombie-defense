@@ -131,6 +131,16 @@ func (s *Service) RegisterPlayer(ctx context.Context, username, email, password 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve created player: %w", err)
 	}
+
+	// Create player progression row with default values
+	err = s.queries.CreatePlayerProgression(ctx, s.dbConn, player.PlayerID)
+	if err != nil {
+		// Log but continue - progression row may already exist or other issue
+		s.logger.Warn("Failed to create player progression row",
+			zap.Int64("player_id", player.PlayerID),
+			zap.Error(err))
+	}
+
 	return player, nil
 }
 
@@ -342,6 +352,40 @@ func (s *Service) GetPlayerSettings(ctx context.Context, playerID int64) (*db.Pl
 	return settings, nil
 }
 
+// GetPlayerProgression retrieves player progression or creates a default row if not found.
+func (s *Service) GetPlayerProgression(ctx context.Context, playerID int64) (*db.PlayerProgression, error) {
+	progression, err := s.queries.GetPlayerProgression(ctx, s.dbConn, playerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Create default progression row
+			err = s.queries.CreatePlayerProgression(ctx, s.dbConn, playerID)
+			if err != nil {
+				// Log but continue with default values
+				s.logger.Warn("Failed to create player progression row",
+					zap.Int64("player_id", playerID),
+					zap.Error(err))
+			}
+			// Return default progression
+			return &db.PlayerProgression{
+				PlayerID:           playerID,
+				Level:              1,
+				Experience:         0,
+				PrestigeLevel:      0,
+				DataCurrency:       0,
+				TotalMatchesPlayed: 0,
+				TotalWavesSurvived: 0,
+				TotalKills:         0,
+				TotalDeaths:        0,
+				TotalScrapEarned:   0,
+				TotalDataEarned:    0,
+				UpdatedAt:          types.Timestamp{},
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to get player progression: %w", err)
+	}
+	return progression, nil
+}
+
 // UpsertPlayerSettings creates or updates player settings.
 func (s *Service) UpsertPlayerSettings(ctx context.Context, params *db.UpsertPlayerSettingsParams) error {
 	err := s.queries.UpsertPlayerSettings(ctx, s.dbConn, params)
@@ -354,4 +398,196 @@ func (s *Service) UpsertPlayerSettings(ctx context.Context, params *db.UpsertPla
 // Config returns the service configuration.
 func (s *Service) Config() config.Config {
 	return s.config
+}
+
+// calculateLevelFromXP computes the player level based on their XP using linear scaling.
+// Level = floor(XP / BaseXPPerLevel) + 1, with minimum level of 1.
+func (s *Service) calculateLevelFromXP(xp int64) int64 {
+	if xp <= 0 {
+		return 1
+	}
+	base := int64(s.config.Progression.BaseXPPerLevel)
+	if base <= 0 {
+		base = 1000 // fallback
+	}
+	level := xp/base + 1
+	if level < 1 {
+		return 1
+	}
+	return level
+}
+
+// xpForNextLevel returns the XP needed to reach the next level from current XP.
+func (s *Service) xpForNextLevel(xp int64) int64 {
+	base := int64(s.config.Progression.BaseXPPerLevel)
+	if base <= 0 {
+		base = 1000
+	}
+	currentLevel := s.calculateLevelFromXP(xp)
+	xpForNextLevel := currentLevel * base
+	return xpForNextLevel - xp
+}
+
+// AddExperience adds XP to a player's progression and updates level if needed.
+func (s *Service) AddExperience(ctx context.Context, playerID int64, xpGain int64) error {
+	if xpGain <= 0 {
+		return nil
+	}
+	// Get current progression
+	progression, err := s.GetPlayerProgression(ctx, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to get player progression: %w", err)
+	}
+	oldLevel := progression.Level
+	// Add XP
+	err = s.queries.IncrementExperience(ctx, s.dbConn, &db.IncrementExperienceParams{
+		Experience: xpGain,
+		PlayerID:   playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to increment experience: %w", err)
+	}
+	// Compute new level based on updated XP (need to fetch again or compute)
+	newXP := progression.Experience + xpGain
+	newLevel := s.calculateLevelFromXP(newXP)
+	if newLevel > oldLevel {
+		// Level up
+		err = s.queries.UpdateLevel(ctx, s.dbConn, &db.UpdateLevelParams{
+			Level:    newLevel,
+			PlayerID: playerID,
+		})
+		if err != nil {
+			s.logger.Warn("Failed to update level after XP gain",
+				zap.Int64("player_id", playerID),
+				zap.Int64("new_level", newLevel),
+				zap.Error(err))
+			// Continue without returning error
+		}
+	}
+	return nil
+}
+
+// AddMatchRewards updates player progression with match results and awards XP and data currency.
+// This implements the XP calculation from match results as required by US-013.
+func (s *Service) AddMatchRewards(ctx context.Context, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error {
+	if kills < 0 || deaths < 0 || wavesSurvived < 0 || scrapEarned < 0 || dataEarned < 0 {
+		return fmt.Errorf("match stats cannot be negative")
+	}
+	// Calculate XP gain based on match performance
+	// Base XP per match completion
+	baseXP := int64(100)
+	// XP per kill
+	xpPerKill := int64(10)
+	// XP per wave survived
+	xpPerWave := int64(50)
+	// XP per scrap (small amount)
+	xpPerScrap := int64(1) // 1 XP per 10 scrap? We'll keep simple 1:1 for now
+
+	totalXP := baseXP + (kills * xpPerKill) + (wavesSurvived * xpPerWave) + (scrapEarned * xpPerScrap)
+
+	// Update match statistics
+	err := s.queries.IncrementMatchStats(ctx, s.dbConn, &db.IncrementMatchStatsParams{
+		TotalMatchesPlayed: 1,
+		TotalWavesSurvived: wavesSurvived,
+		TotalKills:         kills,
+		TotalDeaths:        deaths,
+		TotalScrapEarned:   scrapEarned,
+		TotalDataEarned:    dataEarned,
+		PlayerID:           playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to increment match stats: %w", err)
+	}
+	// Award XP (which handles level-ups)
+	err = s.AddExperience(ctx, playerID, totalXP)
+	if err != nil {
+		return fmt.Errorf("failed to add experience: %w", err)
+	}
+	// Award data currency 1:1 with data earned
+	if dataEarned > 0 {
+		err = s.queries.AddDataCurrency(ctx, s.dbConn, &db.AddDataCurrencyParams{
+			DataCurrency: dataEarned,
+			PlayerID:     playerID,
+		})
+		if err != nil {
+			s.logger.Warn("Failed to add data currency",
+				zap.Int64("player_id", playerID),
+				zap.Int64("data_earned", dataEarned),
+				zap.Error(err))
+			// Continue without returning error
+		}
+	}
+	return nil
+}
+
+// PrestigePlayer resets player level and experience, increments prestige level,
+// and grants exclusive cosmetic items based on the new prestige level.
+func (s *Service) PrestigePlayer(ctx context.Context, playerID int64) error {
+	// Try to get *sql.DB for transaction support
+	var dbTx db.DBTX
+	var tx *sql.Tx
+	var err error
+
+	if db, ok := s.dbConn.(*sql.DB); ok {
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		dbTx = tx
+	} else {
+		// Already a transaction or other DBTX; use directly without transaction
+		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
+		dbTx = s.dbConn
+	}
+
+	// Prestige player (reset level/XP, increment prestige)
+	err = s.queries.PrestigePlayer(ctx, dbTx, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to prestige player: %w", err)
+	}
+
+	// Get updated progression to know new prestige level
+	progression, err := s.queries.GetPlayerProgression(ctx, dbTx, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to get player progression: %w", err)
+	}
+
+	// Get prestige cosmetics not already owned
+	cosmetics, err := s.queries.GetPrestigeCosmetics(ctx, dbTx, &db.GetPrestigeCosmeticsParams{
+		PlayerID:    playerID,
+		UnlockLevel: progression.PrestigeLevel,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to get prestige cosmetics: %w", err)
+	}
+
+	// Grant each cosmetic
+	for _, cosmetic := range cosmetics {
+		err = s.queries.GrantCosmeticToPlayer(ctx, dbTx, &db.GrantCosmeticToPlayerParams{
+			PlayerID:    playerID,
+			CosmeticID:  cosmetic.CosmeticID,
+			UnlockedVia: "prestige",
+		})
+		if err != nil {
+			// Log but continue - duplicate cosmetic ownership may occur
+			s.logger.Warn("Failed to grant cosmetic to player",
+				zap.Int64("player_id", playerID),
+				zap.Int64("cosmetic_id", cosmetic.CosmeticID),
+				zap.Error(err))
+		}
+	}
+
+	// Commit transaction if we started one
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+	}
+
+	s.logger.Info("Player prestiged successfully",
+		zap.Int64("player_id", playerID),
+		zap.Int64("new_prestige_level", progression.PrestigeLevel),
+		zap.Int("cosmetics_granted", len(cosmetics)))
+	return nil
 }

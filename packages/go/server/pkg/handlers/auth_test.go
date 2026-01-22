@@ -35,6 +35,9 @@ func getTestConfig() config.Config {
 			AccessExpiration:  15 * time.Minute,
 			RefreshExpiration: 7 * 24 * time.Hour,
 		},
+		Progression: config.ProgressionConfig{
+			BaseXPPerLevel: 1000,
+		},
 	}
 }
 
@@ -91,6 +94,25 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(createPlayerSettingsSQL); err != nil {
 		t.Fatalf("Failed to create player_settings table: %v", err)
 	}
+	// Create player_progression table
+	createProgressionSQL := `CREATE TABLE player_progression (
+    player_id INTEGER PRIMARY KEY,
+    level INTEGER NOT NULL DEFAULT 1,
+    experience INTEGER NOT NULL DEFAULT 0,
+    prestige_level INTEGER NOT NULL DEFAULT 0,
+    data_currency INTEGER NOT NULL DEFAULT 0,
+    total_matches_played INTEGER NOT NULL DEFAULT 0,
+    total_waves_survived INTEGER NOT NULL DEFAULT 0,
+    total_kills INTEGER NOT NULL DEFAULT 0,
+    total_deaths INTEGER NOT NULL DEFAULT 0,
+    total_scrap_earned INTEGER NOT NULL DEFAULT 0,
+    total_data_earned INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+);`
+	if _, err := db.Exec(createProgressionSQL); err != nil {
+		t.Fatalf("Failed to create player_progression table: %v", err)
+	}
 	return db
 }
 
@@ -124,6 +146,11 @@ func createTestPlayer(t *testing.T, db *sql.DB, username, email, password string
 	playerID, err := result.LastInsertId()
 	if err != nil {
 		t.Fatalf("Failed to get player ID: %v", err)
+	}
+	// Create player progression row
+	_, err = db.Exec(`INSERT INTO player_progression (player_id) VALUES (?)`, playerID)
+	if err != nil {
+		t.Fatalf("Failed to create player progression row: %v", err)
 	}
 	return playerID
 }
