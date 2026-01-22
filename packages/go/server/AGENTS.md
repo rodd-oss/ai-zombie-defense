@@ -33,3 +33,14 @@
 - Clear environment variables before each test to avoid pollution
 - Test both default values and environment overrides
 - Use `-race` flag when running tests to detect data races
+
+## HTTP Server with Fiber
+
+- Use Fiber v2 for HTTP server; import `fiberLogger` to avoid naming conflict with zap logger
+- Default middleware: `logger.New()` and `recover.New()`
+- Health endpoint: `GET /health` returns `{"status":"ok"}`
+- Server configuration uses `SERVER_HOST` and `SERVER_PORT` environment variables (default: `0.0.0.0:8080`)
+- Shutdown requires context; call `ShutdownWithContext(ctx)` with timeout
+- Create server instance via `server.New(cfg, logger)`
+- Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
+- Test servers using random free ports via `net.Listen` and `zaptest.Logger`

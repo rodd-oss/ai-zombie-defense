@@ -11,6 +11,10 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Database connection pooling: Use `database.OpenDB(path)` with default settings (MaxOpenConns=5, MaxIdleConns=2, ConnMaxLifetime=5m, ConnMaxIdleTime=2m)
 - Logging: Use zap logger with LOG_LEVEL and LOG_ENCODING environment variables (json/console)
 - Configuration: Use viper with uppercase environment variables; JWT_SECRET required
+- Use Fiber v2 for HTTP server; import fiberLogger to avoid naming conflict with zap logger
+- Fiber's Shutdown method is ShutdownWithContext(ctx); call with timeout context
+- Server configuration uses SERVER_HOST and SERVER_PORT environment variables (default 0.0.0.0:8080)
+- Test HTTP servers using random free ports via net.Listen and zaptest.Logger
 
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
@@ -71,4 +75,20 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - JWT_SECRET is required; no default for security
   - Go workspace must include new modules in go.work
   - Run `go mod tidy` after adding dependencies
+---
+
+## 2026-01-22 12:12 UTC - US-006
+- Implemented basic Fiber server with default middleware (logger, recover)
+- Added GET /health endpoint returning 200 OK
+- Server reads configuration for port and host via viper environment variables
+- Created server package with New, Start, Shutdown methods
+- Added cmd/server/main.go with graceful shutdown and signal handling
+- Added comprehensive tests for server creation and health endpoint
+- Files changed: packages/go/server/go.mod, packages/go/server/pkg/server/server.go, packages/go/server/cmd/server/main.go, packages/go/server/pkg/server/server_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Use Fiber v2 with default middleware; import fiberLogger to avoid naming conflict with zap logger
+  - Fiber's Shutdown method requires context; use ShutdownWithContext(ctx)
+  - Server config uses viper environment variables SERVER_HOST and SERVER_PORT (default 0.0.0.0:8080)
+  - Test server using zaptest.Logger and random free ports via net.Listen
+  - Go workspace includes server module; run `go mod tidy` after adding dependencies
 ---
