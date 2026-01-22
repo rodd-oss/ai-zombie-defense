@@ -1,4 +1,4 @@
--- friends table
+-- +goose Up
 CREATE TABLE friends (
     player_id INTEGER NOT NULL,
     friend_id INTEGER NOT NULL,
@@ -11,3 +11,7 @@ CREATE TABLE friends (
 );
 
 CREATE INDEX idx_friends_friend_id ON friends (friend_id);
+
+-- +goose Down
+DROP INDEX idx_friends_friend_id;
+DROP TABLE friends;

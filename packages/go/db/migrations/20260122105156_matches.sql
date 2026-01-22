@@ -1,4 +1,4 @@
--- matches table
+-- +goose Up
 CREATE TABLE matches (
     match_id INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id INTEGER NOT NULL,
@@ -14,3 +14,7 @@ CREATE TABLE matches (
 );
 
 CREATE INDEX idx_matches_server_id ON matches (server_id);
+
+-- +goose Down
+DROP INDEX idx_matches_server_id;
+DROP TABLE matches;

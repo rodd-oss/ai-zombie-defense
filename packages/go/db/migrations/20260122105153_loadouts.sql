@@ -1,4 +1,4 @@
--- loadouts table
+-- +goose Up
 CREATE TABLE loadouts (
     loadout_id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER NOT NULL,
@@ -10,3 +10,7 @@ CREATE TABLE loadouts (
 );
 
 CREATE INDEX idx_loadouts_player_id ON loadouts (player_id);
+
+-- +goose Down
+DROP INDEX idx_loadouts_player_id;
+DROP TABLE loadouts;

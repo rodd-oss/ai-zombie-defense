@@ -1,4 +1,4 @@
--- player_match_stats table
+-- +goose Up
 CREATE TABLE player_match_stats (
     player_id INTEGER NOT NULL,
     match_id INTEGER NOT NULL,
@@ -20,3 +20,7 @@ CREATE TABLE player_match_stats (
 );
 
 CREATE INDEX idx_player_match_stats_match_id ON player_match_stats (match_id);
+
+-- +goose Down
+DROP INDEX idx_player_match_stats_match_id;
+DROP TABLE player_match_stats;

@@ -1,4 +1,4 @@
--- players table
+-- +goose Up
 CREATE TABLE players (
     player_id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -10,3 +10,6 @@ CREATE TABLE players (
     banned_reason TEXT,
     banned_until TEXT
 );
+
+-- +goose Down
+DROP TABLE players;

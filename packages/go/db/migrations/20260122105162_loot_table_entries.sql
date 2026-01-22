@@ -1,4 +1,4 @@
--- loot_table_entries table
+-- +goose Up
 CREATE TABLE loot_table_entries (
     loot_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
     loot_table_id INTEGER NOT NULL,
@@ -12,3 +12,8 @@ CREATE TABLE loot_table_entries (
 
 CREATE INDEX idx_loot_table_entries_loot_table_id ON loot_table_entries (loot_table_id);
 CREATE INDEX idx_loot_table_entries_cosmetic_id ON loot_table_entries (cosmetic_id);
+
+-- +goose Down
+DROP INDEX idx_loot_table_entries_cosmetic_id;
+DROP INDEX idx_loot_table_entries_loot_table_id;
+DROP TABLE loot_table_entries;

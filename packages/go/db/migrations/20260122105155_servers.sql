@@ -1,4 +1,4 @@
--- servers table
+-- +goose Up
 CREATE TABLE servers (
     server_id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip_address TEXT NOT NULL,
@@ -13,3 +13,6 @@ CREATE TABLE servers (
     version TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+
+-- +goose Down
+DROP TABLE servers;

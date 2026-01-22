@@ -1,4 +1,4 @@
--- sessions table
+-- +goose Up
 CREATE TABLE sessions (
     session_id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER NOT NULL,
@@ -11,3 +11,7 @@ CREATE TABLE sessions (
 );
 
 CREATE INDEX idx_sessions_player_id ON sessions (player_id);
+
+-- +goose Down
+DROP INDEX idx_sessions_player_id;
+DROP TABLE sessions;

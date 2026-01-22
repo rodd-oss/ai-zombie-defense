@@ -1,4 +1,4 @@
--- player_progression table
+-- +goose Up
 CREATE TABLE player_progression (
     player_id INTEGER PRIMARY KEY,
     level INTEGER NOT NULL DEFAULT 1,
@@ -14,3 +14,6 @@ CREATE TABLE player_progression (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
 );
+
+-- +goose Down
+DROP TABLE player_progression;

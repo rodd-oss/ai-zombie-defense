@@ -1,4 +1,4 @@
--- player_cosmetics table
+-- +goose Up
 CREATE TABLE player_cosmetics (
     player_id INTEGER NOT NULL,
     cosmetic_id INTEGER NOT NULL,
@@ -10,3 +10,7 @@ CREATE TABLE player_cosmetics (
 );
 
 CREATE INDEX idx_player_cosmetics_cosmetic_id ON player_cosmetics (cosmetic_id);
+
+-- +goose Down
+DROP INDEX idx_player_cosmetics_cosmetic_id;
+DROP TABLE player_cosmetics;

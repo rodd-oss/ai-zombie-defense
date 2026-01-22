@@ -1,4 +1,4 @@
--- loadout_cosmetics table
+-- +goose Up
 CREATE TABLE loadout_cosmetics (
     loadout_id INTEGER NOT NULL,
     cosmetic_id INTEGER NOT NULL,
@@ -9,3 +9,7 @@ CREATE TABLE loadout_cosmetics (
 );
 
 CREATE INDEX idx_loadout_cosmetics_cosmetic_id ON loadout_cosmetics (cosmetic_id);
+
+-- +goose Down
+DROP INDEX idx_loadout_cosmetics_cosmetic_id;
+DROP TABLE loadout_cosmetics;

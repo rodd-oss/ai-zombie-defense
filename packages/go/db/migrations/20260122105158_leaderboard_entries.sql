@@ -1,4 +1,4 @@
--- leaderboard_entries table
+-- +goose Up
 CREATE TABLE leaderboard_entries (
     leaderboard_id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER NOT NULL,
@@ -14,3 +14,8 @@ CREATE TABLE leaderboard_entries (
 
 CREATE INDEX idx_leaderboard_entries_player_id ON leaderboard_entries (player_id);
 CREATE INDEX idx_leaderboard_entries_period ON leaderboard_entries (period);
+
+-- +goose Down
+DROP INDEX idx_leaderboard_entries_period;
+DROP INDEX idx_leaderboard_entries_player_id;
+DROP TABLE leaderboard_entries;

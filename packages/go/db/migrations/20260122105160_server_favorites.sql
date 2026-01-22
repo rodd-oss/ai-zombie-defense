@@ -1,4 +1,4 @@
--- server_favorites table
+-- +goose Up
 CREATE TABLE server_favorites (
     player_id INTEGER NOT NULL,
     server_id INTEGER NOT NULL,
@@ -10,3 +10,7 @@ CREATE TABLE server_favorites (
 );
 
 CREATE INDEX idx_server_favorites_server_id ON server_favorites (server_id);
+
+-- +goose Down
+DROP INDEX idx_server_favorites_server_id;
+DROP TABLE server_favorites;

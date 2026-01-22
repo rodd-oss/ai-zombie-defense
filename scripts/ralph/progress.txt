@@ -2,6 +2,13 @@
 Started: Thu Jan 22 13:48:44 MSK 2026
 ---
 
+## Codebase Patterns
+- SQLite does not support ENUM types; use CHECK constraints with IN list
+- Timestamp columns are TEXT with ISO 8601 format; use column-specific overrides in sqlc.yaml to map to time.Time
+- Foreign key indexes are not automatically created; need explicit CREATE INDEX
+- Migration files require `-- +goose Up` and `-- +goose Down` annotations with proper ordering (drop indexes before tables)
+- Enable foreign keys with `PRAGMA foreign_keys = ON` and WAL mode with `PRAGMA journal_mode = WAL` on database connection
+
 ## 2026-01-22 10:51 UTC - US-001
 - Converted ERD diagram to SQL migration files for all database tables
 - Created 16 migration files in packages/go/db/migrations/ with proper foreign key constraints and indexes
@@ -22,4 +29,18 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Nullable timestamp columns need `pointer: true` in sqlc overrides to generate *time.Time
   - The go.work file must include module paths for go vet to work; currently only includes packages/go/db
   - Use sqlc generate with at least one query file referencing tables; placeholder SELECT 1 is insufficient
+---
+
+## 2026-01-22 14:42 UTC - US-003
+- Implemented goose migration runner with SQLite driver
+- Created migration CLI tool with up/down/status commands
+- Added migration tests with in-memory SQLite database
+- Updated all migration files with goose annotations
+- Files changed: packages/go/db/migrations/*.sql, packages/go/db/pkg/migrations/migrations.go, packages/go/db/cmd/migrate/main.go, packages/go/db/pkg/migrations/migrations_test.go, packages/go/db/go.mod, packages/go/db/go.sum, packages/go/db/AGENTS.md
+- **Learnings for future iterations:**
+  - Goose migration files require specific annotations (`-- +goose Up` and `-- +goose Down`)
+  - Down migrations must drop indexes before tables (reverse order)
+  - Use `goose.SetDialect("sqlite")` before running migrations
+  - The migration CLI enables foreign keys and WAL mode automatically
+  - Test migrations with in-memory SQLite for speed and isolation
 ---
