@@ -198,8 +198,8 @@
         "Tests pass"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented GET /progression endpoint (also available at /account/progression) with JWT middleware protection. XP gains calculated via AddMatchRewards method using performance-based formula. Level-up thresholds configured via PROGRESSION_BASE_XP_PER_LEVEL environment variable. All tests pass."
     },
     {
       "id": "US-014",

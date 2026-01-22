@@ -164,3 +164,17 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Test database setup must include all required tables; update auth_test.go's setupTestDB function when adding new tables
   - Fiber handler pattern: extract player ID via middleware.GetPlayerID, use service methods, return consistent error responses
 ---
+
+## 2026-01-22 18:45 UTC - US-013
+- Implemented GET /progression endpoint (also available at /account/progression) with JWT middleware protection
+- XP gains calculated via AddMatchRewards method using performance-based formula
+- Level-up thresholds configured via PROGRESSION_BASE_XP_PER_LEVEL environment variable
+- Added new route group `/progression` for future progression-related endpoints
+- Updated tests to cover both route paths
+- Files changed: packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/account_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - The same handler can be registered under multiple routes (e.g., /account/progression and /progression)
+  - Progression endpoint uses existing auth service method GetPlayerProgression which creates default row if missing
+  - XP calculation uses config.BaseXPPerLevel for level thresholds; match reward XP is hardcoded but can be moved to config later
+  - When adding new route groups, ensure JWT middleware is applied to the group
+---

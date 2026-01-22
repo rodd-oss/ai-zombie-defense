@@ -407,3 +407,75 @@ func TestAccountHandlers_UpdateSettings(t *testing.T) {
 		t.Errorf("Expected status 400 for invalid JSON, got %d", resp.StatusCode)
 	}
 }
+
+func TestAccountHandlers_GetProgression(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createFullTestServer(t, db)
+
+	playerID := createTestPlayer(t, db, "testuser", "test@example.com", "password")
+	accessToken := createTestAccessToken(t, db, playerID)
+
+	// Test both /account/progression and /progression routes
+	paths := []string{"/account/progression", "/progression"}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer "+accessToken)
+			resp, err := app.Test(req, -1)
+			if err != nil {
+				t.Fatalf("Failed to make request: %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("Expected status 200, got %d", resp.StatusCode)
+			}
+			var result map[string]interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				t.Fatalf("Failed to decode response: %v", err)
+			}
+			if result["player_id"] != float64(playerID) {
+				t.Errorf("Expected player_id %d, got %v", playerID, result["player_id"])
+			}
+			if result["level"] != float64(1) {
+				t.Errorf("Expected level 1, got %v", result["level"])
+			}
+			if result["experience"] != float64(0) {
+				t.Errorf("Expected experience 0, got %v", result["experience"])
+			}
+			if result["prestige_level"] != float64(0) {
+				t.Errorf("Expected prestige_level 0, got %v", result["prestige_level"])
+			}
+			if result["data_currency"] != float64(0) {
+				t.Errorf("Expected data_currency 0, got %v", result["data_currency"])
+			}
+			if _, ok := result["updated_at"]; !ok {
+				t.Error("Response missing updated_at")
+			}
+		})
+	}
+
+	// Test without authorization header
+	t.Run("missing token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/account/progression", nil)
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 for missing token, got %d", resp.StatusCode)
+		}
+	})
+
+	// Test with invalid token
+	t.Run("invalid token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/account/progression", nil)
+		req.Header.Set("Authorization", "Bearer invalid")
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 for invalid token, got %d", resp.StatusCode)
+		}
+	})
+}

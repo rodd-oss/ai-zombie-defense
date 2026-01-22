@@ -76,6 +76,11 @@ func (s *Server) registerRoutes() {
 		accountGroup.Put("/profile", accountHandlers.UpdateProfile)
 		accountGroup.Get("/settings", accountHandlers.GetSettings)
 		accountGroup.Put("/settings", accountHandlers.UpdateSettings)
+		accountGroup.Get("/progression", accountHandlers.GetProgression)
+
+		// Progression routes (protected by JWT middleware)
+		progressionGroup := s.app.Group("/progression", middleware.AuthMiddleware(authService, s.logger))
+		progressionGroup.Get("/", accountHandlers.GetProgression)
 	}
 }
 
