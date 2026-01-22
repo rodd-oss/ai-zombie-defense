@@ -102,3 +102,98 @@ func TestUpdateHeartbeat(t *testing.T) {
 		t.Errorf("Expected map_rotation = 'map1', got %v", mapRotation)
 	}
 }
+
+func TestListServers(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	app := createTestServerWithAllRoutes(t, db)
+
+	// Register server
+	registerReq := map[string]interface{}{
+		"ip_address":   "127.0.0.1",
+		"port":         27015,
+		"name":         "Test Server",
+		"map_rotation": "map1",
+		"max_players":  12,
+		"region":       "us-east",
+		"version":      "1.0.0",
+	}
+	body, _ := json.Marshal(registerReq)
+	req := httptest.NewRequest(http.MethodPost, "/servers/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to register server: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("Expected status 201, got %d", resp.StatusCode)
+	}
+	var registerResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&registerResp); err != nil {
+		t.Fatalf("Failed to decode registration response: %v", err)
+	}
+	serverID := int64(registerResp["server_id"].(float64))
+	authToken := registerResp["auth_token"].(string)
+
+	// Send heartbeat to make server online
+	heartbeatReq := map[string]interface{}{
+		"current_players": 5,
+		"map":             "map1",
+	}
+	body, _ = json.Marshal(heartbeatReq)
+	req = httptest.NewRequest(http.MethodPut, "/servers/"+strconv.FormatInt(serverID, 10)+"/heartbeat", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Server-Token", authToken)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to send heartbeat: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	// GET /servers should return the server
+	req = httptest.NewRequest(http.MethodGet, "/servers", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to list servers: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var servers []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&servers); err != nil {
+		t.Fatalf("Failed to decode servers list: %v", err)
+	}
+	if len(servers) != 1 {
+		t.Errorf("Expected 1 server, got %d", len(servers))
+	}
+	// Verify server details
+	server := servers[0]
+	if server["region"] != "us-east" {
+		t.Errorf("Expected region us-east, got %v", server["region"])
+	}
+	if server["map_rotation"] != "map1" {
+		t.Errorf("Expected map_rotation map1, got %v", server["map_rotation"])
+	}
+	if server["current_players"].(float64) != 5 {
+		t.Errorf("Expected current_players 5, got %v", server["current_players"])
+	}
+
+	// Filter by region
+	req = httptest.NewRequest(http.MethodGet, "/servers?region=us-east", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to list servers with region filter: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	var filtered []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&filtered); err != nil {
+		t.Fatalf("Failed to decode filtered servers: %v", err)
+	}
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 server with region us-east, got %d", len(filtered))
+	}
+}

@@ -123,6 +123,68 @@ func (q *Queries) GetServerByAuthToken(ctx context.Context, db DBTX, authToken *
 	return &i, err
 }
 
+const listActiveServers = `-- name: ListActiveServers :many
+SELECT server_id, ip_address, port, auth_token, name, map_rotation, max_players, current_players, is_online, last_heartbeat, region, version, created_at FROM servers
+WHERE is_online = 1
+  AND (region = ?1 OR ?1 IS NULL)
+  AND (map_rotation = ?2 OR ?2 IS NULL)
+  AND (version = ?3 OR ?3 IS NULL)
+  AND (current_players >= ?4 OR ?4 = -1)
+  AND (current_players <= ?5 OR ?5 = -1)
+ORDER BY server_id
+`
+
+type ListActiveServersParams struct {
+	Region           *string `json:"region"`
+	MapRotation      *string `json:"map_rotation"`
+	Version          *string `json:"version"`
+	CurrentPlayers   int64   `json:"current_players"`
+	CurrentPlayers_2 int64   `json:"current_players_2"`
+}
+
+func (q *Queries) ListActiveServers(ctx context.Context, db DBTX, arg *ListActiveServersParams) ([]*Server, error) {
+	rows, err := db.QueryContext(ctx, listActiveServers,
+		arg.Region,
+		arg.MapRotation,
+		arg.Version,
+		arg.CurrentPlayers,
+		arg.CurrentPlayers_2,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*Server{}
+	for rows.Next() {
+		var i Server
+		if err := rows.Scan(
+			&i.ServerID,
+			&i.IpAddress,
+			&i.Port,
+			&i.AuthToken,
+			&i.Name,
+			&i.MapRotation,
+			&i.MaxPlayers,
+			&i.CurrentPlayers,
+			&i.IsOnline,
+			&i.LastHeartbeat,
+			&i.Region,
+			&i.Version,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServers = `-- name: ListServers :many
 SELECT server_id, ip_address, port, auth_token, name, map_rotation, max_players, current_players, is_online, last_heartbeat, region, version, created_at FROM servers ORDER BY server_id
 `

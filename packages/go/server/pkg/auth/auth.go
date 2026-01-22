@@ -900,3 +900,27 @@ func (s *Service) UpdateServerHeartbeat(ctx context.Context, serverID int64, cur
 	}
 	return nil
 }
+
+// ListActiveServers returns a filtered list of active servers.
+func (s *Service) ListActiveServers(ctx context.Context, region, mapRotation, version *string, minPlayers, maxPlayers *int64) ([]*db.Server, error) {
+	params := &db.ListActiveServersParams{
+		Region:      region,
+		MapRotation: mapRotation,
+		Version:     version,
+	}
+	if minPlayers != nil {
+		params.CurrentPlayers = *minPlayers
+	} else {
+		params.CurrentPlayers = -1
+	}
+	if maxPlayers != nil {
+		params.CurrentPlayers_2 = *maxPlayers
+	} else {
+		params.CurrentPlayers_2 = -1
+	}
+	servers, err := s.queries.ListActiveServers(ctx, s.dbConn, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active servers: %w", err)
+	}
+	return servers, nil
+}

@@ -252,3 +252,11 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - UpdateServerHeartbeat query already existed; extended with map_rotation parameter
   - Use server.New for full route integration testing instead of manually building routes
 ---
+## 2026-01-22 18:37 UTC - US-021
+- Implemented GET /servers endpoint with filtering by region, map, version, min_players, max_players
+- Files changed: packages/go/db/queries/servers.sql, packages/go/db/servers.sql.go, packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/servers.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/handlers/servers_test.go, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Use sentinel value -1 for ignored integer filters in SQL queries (SQLite doesn't support nullable parameters in sqlc with positional placeholders)
+  - Server browser endpoint is public and returns only active servers (is_online=1)
+  - Query parameters are optional; use pointers and convert empty strings to nil
+---

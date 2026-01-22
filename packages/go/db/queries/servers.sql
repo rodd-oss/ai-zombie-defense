@@ -32,3 +32,13 @@ WHERE server_id = ?;
 
 -- name: DeleteServer :exec
 DELETE FROM servers WHERE server_id = ?;
+
+-- name: ListActiveServers :many
+SELECT * FROM servers
+WHERE is_online = 1
+  AND (region = ?1 OR ?1 IS NULL)
+  AND (map_rotation = ?2 OR ?2 IS NULL)
+  AND (version = ?3 OR ?3 IS NULL)
+  AND (current_players >= ?4 OR ?4 = -1)
+  AND (current_players <= ?5 OR ?5 = -1)
+ORDER BY server_id;

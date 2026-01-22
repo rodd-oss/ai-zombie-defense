@@ -3,6 +3,7 @@ package handlers
 import (
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/middleware"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -129,4 +130,56 @@ func (h *ServerHandlers) UpdateHeartbeat(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status": "ok",
 	})
+}
+
+// ListServers handles GET /servers
+func (h *ServerHandlers) ListServers(c *fiber.Ctx) error {
+	// Parse query parameters
+	region := c.Query("region")
+	mapRotation := c.Query("map")
+	version := c.Query("version")
+	minPlayersStr := c.Query("min_players")
+	maxPlayersStr := c.Query("max_players")
+
+	// Convert strings to pointers
+	var regionPtr, mapPtr, versionPtr *string
+	if region != "" {
+		regionPtr = &region
+	}
+	if mapRotation != "" {
+		mapPtr = &mapRotation
+	}
+	if version != "" {
+		versionPtr = &version
+	}
+
+	var minPlayersPtr, maxPlayersPtr *int64
+	if minPlayersStr != "" {
+		val, err := strconv.ParseInt(minPlayersStr, 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid min_players parameter",
+			})
+		}
+		minPlayersPtr = &val
+	}
+	if maxPlayersStr != "" {
+		val, err := strconv.ParseInt(maxPlayersStr, 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid max_players parameter",
+			})
+		}
+		maxPlayersPtr = &val
+	}
+
+	servers, err := h.service.ListActiveServers(c.Context(), regionPtr, mapPtr, versionPtr, minPlayersPtr, maxPlayersPtr)
+	if err != nil {
+		h.logger.Error("Failed to list servers", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve servers",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(servers)
 }
