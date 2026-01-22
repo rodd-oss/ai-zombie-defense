@@ -42,7 +42,7 @@ func TestNewServer(t *testing.T) {
 		},
 	}
 
-	srv := New(cfg, logger)
+	srv := New(cfg, logger, nil)
 	if srv == nil {
 		t.Fatal("Expected server instance, got nil")
 	}
@@ -67,7 +67,7 @@ func TestHealthEndpoint(t *testing.T) {
 		},
 	}
 
-	srv := New(cfg, logger)
+	srv := New(cfg, logger, nil)
 
 	// Start server in background
 	go func() {

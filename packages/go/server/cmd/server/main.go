@@ -30,8 +30,8 @@ func main() {
 	}
 	defer logger.Sync()
 
-	// Create server
-	srv := server.New(*cfg, logger)
+	// Create server (db connection not yet implemented)
+	srv := server.New(*cfg, logger, nil)
 
 	// Start server in background
 	go func() {

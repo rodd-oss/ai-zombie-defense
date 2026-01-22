@@ -105,8 +105,8 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "User registration endpoint implemented with password hashing, duplicate validation, and JWT token generation. Auth service RegisterPlayer method added with proper error handling for SQLite unique constraints. Tests pass."
     },
     {
       "id": "US-008",
@@ -121,8 +121,8 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "JWT token generation and login endpoint implemented. Authentication service with bcrypt password hashing and custom timestamp types for SQLite TEXT columns. Tests pass."
     },
     {
       "id": "US-009",
@@ -136,8 +136,8 @@
         "Tests pass"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Refresh and logout endpoints implemented with JWT JTI for uniqueness. All tests pass."
     },
     {
       "id": "US-010",

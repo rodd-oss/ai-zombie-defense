@@ -1,4 +1,5 @@
 go 1.24.1
 
 use ./packages/go/db
+
 use ./packages/go/server

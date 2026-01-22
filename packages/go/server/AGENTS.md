@@ -44,3 +44,15 @@
 - Create server instance via `server.New(cfg, logger)`
 - Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
 - Test servers using random free ports via `net.Listen` and `zaptest.Logger`
+## Authentication
+
+- Use `pkg/auth.Service` for authentication logic
+- JWT tokens use HS256 signing with configurable expiration
+- Access tokens are short-lived (default 15 minutes)
+- Refresh tokens are long-lived (default 7 days) and stored in `sessions` table
+- Include a random JWT ID (jti) claim in refresh tokens to ensure uniqueness
+- Password hashing uses bcrypt with default cost
+- Handle duplicate token errors gracefully (retry generation if collision occurs)
+- Validate refresh tokens against both JWT signature and session store
+- Refresh endpoint rotates tokens (deletes old session, creates new one)
+- Logout endpoint deletes the session by token

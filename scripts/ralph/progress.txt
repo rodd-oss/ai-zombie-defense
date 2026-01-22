@@ -11,6 +11,7 @@ Started: Thu Jan 22 13:48:44 MSK 2026
 - Database connection pooling: Use `database.OpenDB(path)` with default settings (MaxOpenConns=5, MaxIdleConns=2, ConnMaxLifetime=5m, ConnMaxIdleTime=2m)
 - Logging: Use zap logger with LOG_LEVEL and LOG_ENCODING environment variables (json/console)
 - Configuration: Use viper with uppercase environment variables; JWT_SECRET required
+- Use JWT ID (jti) claim with random bytes to ensure refresh token uniqueness
 - Use Fiber v2 for HTTP server; import fiberLogger to avoid naming conflict with zap logger
 - Fiber's Shutdown method is ShutdownWithContext(ctx); call with timeout context
 - Server configuration uses SERVER_HOST and SERVER_PORT environment variables (default 0.0.0.0:8080)
@@ -91,4 +92,29 @@ Started: Thu Jan 22 13:48:44 MSK 2026
   - Server config uses viper environment variables SERVER_HOST and SERVER_PORT (default 0.0.0.0:8080)
   - Test server using zaptest.Logger and random free ports via net.Listen
   - Go workspace includes server module; run `go mod tidy` after adding dependencies
+---
+
+## 2026-01-22 12:45 UTC - US-008
+- Implemented login endpoint with JWT token generation and password verification
+- Created auth service with bcrypt hashing and JWT token generation
+- Added auth handlers and integrated with Fiber server
+- Added new SQL queries for player lookup by username/email
+- Updated server to accept database connection and register auth routes
+- Files changed: packages/go/db/queries/player.sql, packages/go/db/generated/*, packages/go/server/go.mod, packages/go/server/pkg/auth/*, packages/go/server/pkg/handlers/auth.go, packages/go/server/pkg/server/server.go, packages/go/server/pkg/server/server_test.go, packages/go/server/cmd/server/main.go, packages/go/server/pkg/auth/auth_service_test.go
+- **Learnings for future iterations:**
+  - SQLite driver (modernc.org/sqlite) may not automatically convert TEXT to time.Time; need to configure sqlc overrides properly
+  - Workspace cross-module imports require .go files in module root; moved sqlc generated files to root to resolve import issues
+  - Authentication service should handle scanning errors gracefully
+  - Use consistent naming for database connection field to avoid shadowing package name
+---
+
+## 2026-01-22 14:10 UTC - US-009
+- Implemented token refresh and logout endpoints
+- Added JWT JTI claim to ensure refresh token uniqueness
+- Created integration tests for auth handlers
+- Files changed: packages/go/server/pkg/auth/auth.go, packages/go/server/pkg/handlers/auth_test.go
+- **Learnings for future iterations:**
+  - Use JWT ID (jti) claim with random bytes to guarantee token uniqueness
+  - Fiber's app.Test() is convenient for handler testing without starting server
+  - SQLite unique constraint errors should be handled gracefully (duplicate token case)
 ---
