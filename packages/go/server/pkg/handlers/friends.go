@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"ai-zombie-defense/server/internal/middleware"
 	"ai-zombie-defense/server/internal/services/social"
-	"ai-zombie-defense/server/pkg/middleware"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"

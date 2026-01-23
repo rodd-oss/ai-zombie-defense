@@ -1,6 +1,8 @@
 ## Codebase Patterns
 - Move generated SQLC code to `internal/db` and export via type aliases in the root `db` package to keep the module API clean while hiding implementation details.
 - Always run `go vet ./...` and `go build ./...` when changing package structures in Go.
+- Use `APIGateway` as the central entry point for routing and server lifecycle management (Start/Shutdown).
+- Middleware should be kept in `internal/middleware` to hide internal logic while providing necessary Fiber handlers for routing.
 
 ## 2026-01-23 13:30 - US-001
 - Refactored Database Package structure by moving SQLC generated files to `internal/db/`.
@@ -16,4 +18,37 @@
 - **Learnings for future iterations:**
   - Use type aliases (`type T = internal.T`) in a parent package to selectively export types from an `internal` subpackage.
   - Functions must be wrapped (`func F() { return internal.F() }`) as they cannot be aliased like types.
+---
+
+## 2026-01-23 13:25 - US-002
+- Consolidated `APIGateway` by merging logic from the obsolete `server` package.
+- Deleted `packages/go/server/pkg/server/` and updated all references to use `gateway.APIGateway`.
+- Updated `APIGateway` to handle its own `Start` and `Shutdown` methods, orchestrating Fiber's lifecycle.
+- Moved route registration to `APIGateway` to centralize initial entry point logic.
+- Verified server starts and `/health` endpoint works correctly.
+- Files changed:
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/cmd/server/main.go`
+    - `packages/go/server/pkg/handlers/servers_test.go`
+    - `packages/go/server/pkg/handlers/account_test.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - `APIGateway` should be the owner of the `fiber.App` lifecycle in the modular monolith.
+  - When deleting a package, check for integration tests that might depend on it for bootstrapping the app.
+  - Mocking or using the new gateway in tests is straightforward if it exposes the underlying router/app.
+---
+
+## 2026-01-23 14:00 - US-003
+- Migrated all middleware from `pkg/middleware/` to `internal/middleware/`.
+- Updated all import references in `gateway.go`, `handlers/`, and tests to the new location.
+- Verified typecheck and middleware tests pass.
+- Removed the now-empty `pkg/middleware/` directory.
+- Files changed:
+    - `packages/go/server/internal/middleware/*.go`
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/pkg/handlers/*.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Moving middleware to `internal` is a key step in encapsulation for the modular monolith.
+  - All handlers that use `c.Locals` should have helper functions in the middleware package to ensure type-safe access to context values.
 ---

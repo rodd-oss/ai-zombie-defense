@@ -3,11 +3,11 @@ package handlers
 import (
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/server/internal/middleware"
 	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/match"
 	"ai-zombie-defense/server/internal/services/progression"
 	"ai-zombie-defense/server/internal/services/server"
-	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"

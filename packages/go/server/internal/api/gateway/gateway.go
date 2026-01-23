@@ -2,10 +2,10 @@ package gateway
 
 import (
 	"ai-zombie-defense/db"
+	"ai-zombie-defense/server/internal/middleware"
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/config"
 	"ai-zombie-defense/server/pkg/handlers"
-	"ai-zombie-defense/server/pkg/middleware"
 	"context"
 	"fmt"
 	"github.com/gofiber/fiber/v2"

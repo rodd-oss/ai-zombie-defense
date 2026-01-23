@@ -45,9 +45,9 @@
 - Health endpoint: `GET /health` returns `{"status":"ok"}`
 - Server configuration uses `SERVER_HOST` and `SERVER_PORT` environment variables (default: `0.0.0.0:8080`)
 - Shutdown requires context; call `ShutdownWithContext(ctx)` with timeout
-- Create server instance via `server.New(cfg, logger)`
+- Create API Gateway instance via `gateway.NewAPIGateway(cfg, logger, db)`
 - Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
-- Test servers using random free ports via `net.Listen` and `zaptest.Logger`
+- Test servers using `gateway.NewAPIGateway` and `srv.Router()`
 
 ## Global Middleware
 
@@ -123,7 +123,7 @@
 
 ## Middleware
 
-- JWT middleware is available in `pkg/middleware.AuthMiddleware`
+- JWT middleware is available in `internal/middleware.AuthMiddleware`
 - Use `middleware.AuthMiddleware(authService, logger)` to protect routes
 - Extracts player ID from token subject claim and stores in `c.Locals("player_id")`
 - Helper functions `middleware.GetPlayerID(c)` and `middleware.GetClaims(c)` retrieve data
@@ -133,7 +133,7 @@
 ## Server Authentication Middleware
 
 - Server authentication uses `X-Server-Token` header and path parameter validation
-- Middleware: `pkg/middleware.ServerAuthMiddleware(authService, logger)`
+- Middleware: `internal/middleware.ServerAuthMiddleware(authService, logger)`
 - Extracts server ID from path param `:id`, validates token via `authService.GetServerByAuthToken`
 - Stores server ID in `c.Locals("server_id")`; retrieve with `middleware.GetServerID(c)`
 - Returns 401 for missing/invalid tokens, 403 for server ID mismatch
@@ -151,7 +151,7 @@
   2. Run `sqlc generate` in `packages/go/db/` to update Go models
   3. Add service methods in `internal/services/<module>/`
   4. Add handlers in `pkg/handlers/`
-  5. Register routes in `cmd/server/main.go` using `gw.MountGroup`
+  5. Register routes in `internal/api/gateway/gateway.go` (temporarily, until fully decentralized)
   6. Write unit tests for services and integration tests for handlers
   7. Ensure test database includes required tables (update `setupTestDB`)
   8. Run `go mod tidy` in affected modules

@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"ai-zombie-defense/server/internal/middleware"
 	"ai-zombie-defense/server/pkg/auth"
 	"ai-zombie-defense/server/pkg/config"
-	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap/zaptest"

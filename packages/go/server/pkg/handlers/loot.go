@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"ai-zombie-defense/server/internal/middleware"
 	"ai-zombie-defense/server/internal/services/loot"
-	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
