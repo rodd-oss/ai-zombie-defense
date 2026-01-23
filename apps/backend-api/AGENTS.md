@@ -152,6 +152,16 @@
 - Transitioning away from `pkg/server.Server` for route registration
 - Services should mount their route groups via `MountGroup(prefix, ...middleware)`
 
+## Migration Subcommand
+
+- The main server binary includes a `migrate` subcommand for database management
+- Usage:
+  - `go run cmd/server/main.go migrate up`      - Run all pending migrations
+  - `go run cmd/server/main.go migrate down`    - Rollback the last migration
+  - `go run cmd/server/main.go migrate status`  - Show current migration status
+- These commands use the logic in `internal/db/migration_runner.go`
+- Migrations are expected to be in the `migrations/` directory relative to the execution root
+
 ## Adding New Endpoints
 - Pattern for adding new endpoints:
   1. Add SQL queries in `db/queries/` (`.sql` files)
