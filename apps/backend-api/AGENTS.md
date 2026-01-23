@@ -26,7 +26,7 @@
 - Service interfaces and logic are in `internal/services/<module>/`
 - Handlers should depend on service interfaces
 - Dependencies: zap for logging, viper for configuration
-- Database logic is integrated within the `db/` package
+- Database logic is integrated within the `internal/db/` package
 - Always run `go mod tidy` after adding new dependencies
 
 ## Testing
@@ -164,8 +164,8 @@
 
 ## Adding New Endpoints
 - Pattern for adding new endpoints:
-  1. Add SQL queries in `db/queries/` (`.sql` files)
-  2. Run `sqlc generate` in `apps/backend-api/db/` to update Go models
+  1. Add SQL queries in `internal/db/sql/queries/` (`.sql` files)
+  2. Run `sqlc generate` in `apps/backend-api/` to update Go models
   3. Add service methods in `internal/services/<module>/`
   4. Add handlers in `internal/services/<module>/handlers/`
   5. Register routes in `internal/api/gateway/gateway.go` (temporarily, until fully decentralized)

@@ -1,7 +1,7 @@
 package account
 
 import (
-	"ai-zombie-defense/backend-api/db"
+	"ai-zombie-defense/backend-api/internal/db"
 	"context"
 	"errors"
 )

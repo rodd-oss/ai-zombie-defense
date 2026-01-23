@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"ai-zombie-defense/backend-api/db"
+	"ai-zombie-defense/backend-api/internal/db"
 	"context"
 	"errors"
 	"github.com/golang-jwt/jwt/v5"

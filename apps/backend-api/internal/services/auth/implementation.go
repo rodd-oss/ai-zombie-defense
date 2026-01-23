@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"ai-zombie-defense/backend-api/db"
+	"ai-zombie-defense/backend-api/internal/db"
 	"ai-zombie-defense/backend-api/internal/db/types"
 	"ai-zombie-defense/backend-api/internal/services/account"
 	"ai-zombie-defense/backend-api/pkg/config"
