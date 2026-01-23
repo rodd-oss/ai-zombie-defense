@@ -13,4 +13,6 @@ type Service interface {
 	GetCosmeticCatalog(ctx context.Context) ([]*db.CosmeticItem, error)
 	GetPlayerCosmetics(ctx context.Context, playerID int64) ([]*db.GetPlayerCosmeticsRow, error)
 	EquipCosmetic(ctx context.Context, playerID int64, cosmeticID int64) error
+	AddMatchRewards(ctx context.Context, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error
+	PurchaseCosmetic(ctx context.Context, playerID int64, cosmeticID int64) error
 }

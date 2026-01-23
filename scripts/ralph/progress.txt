@@ -26,3 +26,55 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - New service interfaces should be placed in internal/services to ensure isolation.
   - Workspace uses 'ai-zombie-defense/server' as the base module for internal packages.
 ---
+
+## 2026-01-23 12:28:44 - US-002
+- Migrated Auth service logic to internal/services/auth.
+- Implemented AuthService interface and moved core auth logic (Authenticate, RegisterPlayer, Token/Session management).
+- Updated pkg/auth.Service to delegate auth operations to the new internal service.
+- Verified all Go tests pass, including new service tests and existing package tests.
+- Files changed:
+  - packages/go/server/internal/services/auth/implementation.go
+  - packages/go/server/internal/services/auth/service_test.go
+  - packages/go/server/pkg/auth/auth.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Migrating logic to internal/services while keeping pkg/auth as a delegator allows for incremental refactoring without breaking existing handlers.
+  - Core errors (ErrInvalidCredentials, etc.) were moved to internal/services/auth and aliased in pkg/auth to maintain compatibility.
+  - Future stories (Account, Progression) should follow this pattern of migrating logic from the "god service" in pkg/auth.
+---
+
+## 2026-01-23 12:45:12 - US-003
+- Migrated Account service logic to internal/services/account.
+- Implemented AccountService interface and moved profile/settings logic (GetPlayer, UpdatePlayerProfile, UpdatePlayerPassword, GetPlayerSettings, UpsertPlayerSettings).
+- Updated pkg/auth.Service to delegate account operations to the new internal service.
+- Unified duplicate username/email errors by sharing them between auth and account internal services.
+- Updated AGENTS.md with Account Service guidelines.
+- Files changed:
+  - packages/go/server/internal/services/account/implementation.go
+  - packages/go/server/pkg/auth/auth.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Internal services should share common domain errors (like ErrDuplicateUsername) to ensure consistent error handling across the modular monolith.
+  - pkg/auth acts as a stable facade during the refactor, allowing handlers to remain unchanged while logic moves to internal services.
+  - When migrating logic that involves bcrypt or other shared utilities, ensure all services use consistent implementations to avoid breaking tests or existing data.
+---
+
+## 2026-01-23 13:10:45 - US-004
+- Migrated Progression and Loot service logic to internal/services.
+- Implemented ProgressionService with XP, level-up, prestige, match rewards, and cosmetic purchasing logic.
+- Implemented LootService with loot table management and weighted drop generation logic.
+- Updated pkg/auth.Service to delegate progression and loot operations to the new internal services.
+- Maintained temporary helpers in pkg/auth.Service for StoreMatchWithStats to preserve transactional integrity until match service migration.
+- Updated AGENTS.md with Progression and Loot Service guidelines.
+- Files changed:
+  - packages/go/server/internal/services/progression/service.go
+  - packages/go/server/internal/services/progression/implementation.go
+  - packages/go/server/internal/services/loot/service.go
+  - packages/go/server/internal/services/loot/implementation.go
+  - packages/go/server/pkg/auth/auth.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Complex operations like StoreMatchWithStats that span multiple domains (Match, Progression) require careful handling of transactions during modularization.
+  - Temporary helpers in the facade service (pkg/auth) can bridge the gap during incremental migration while keeping the public API stable.
+  - Domain-specific errors (ErrCosmeticNotFound, etc.) should be defined in the internal service and aliased in the facade to maintain backward compatibility.
+---

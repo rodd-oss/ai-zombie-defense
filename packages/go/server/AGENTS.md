@@ -80,6 +80,20 @@
 - `GetPlayerSettings` returns player-specific settings (mouse sensitivity, keybindings, etc.) or defaults if none exist
 - `UpsertPlayerSettings` creates or updates settings in a single operation
 
+## Progression Service
+
+- Use `internal/services/progression.Service` for XP, prestige, and currency logic
+- `AddExperience` handles level-ups automatically based on `BaseXPPerLevel` config
+- `AddMatchRewards` calculates and awards XP/Data based on match performance (kills, waves, etc.)
+- `PrestigePlayer` resets level/XP and grants exclusive cosmetics
+- `PurchaseCosmetic` handles currency deduction and ownership granting in a transaction
+
+## Loot Service
+
+- Use `internal/services/loot.Service` for loot table management and drop generation
+- `GenerateLootDrop` selects a random active loot table and entry based on weights
+- Loot tables and entries should be managed via administrative endpoints (coming soon)
+
 ## Middleware
 
 - JWT middleware is available in `pkg/middleware.AuthMiddleware`

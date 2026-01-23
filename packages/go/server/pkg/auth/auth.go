@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	randmath "math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,8 @@ import (
 	"ai-zombie-defense/db/types"
 	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
+	"ai-zombie-defense/server/internal/services/loot"
+	"ai-zombie-defense/server/internal/services/progression"
 	"ai-zombie-defense/server/pkg/config"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,9 +31,9 @@ var (
 	ErrDuplicateEmail             = account.ErrDuplicateEmail
 	ErrInvalidRefreshToken        = auth.ErrInvalidRefreshToken
 	ErrSessionNotFound            = auth.ErrSessionNotFound
-	ErrCosmeticNotFound           = errors.New("cosmetic not found")
-	ErrCosmeticNotOwned           = errors.New("cosmetic not owned")
-	ErrLoadoutNotFound            = errors.New("loadout not found")
+	ErrCosmeticNotFound           = progression.ErrCosmeticNotFound
+	ErrCosmeticNotOwned           = progression.ErrCosmeticNotOwned
+	ErrLoadoutNotFound            = progression.ErrLoadoutNotFound
 	ErrMatchNotFound              = errors.New("match not found")
 	ErrServerNotFound             = errors.New("server not found")
 	ErrJoinTokenInvalid           = errors.New("join token invalid")
@@ -40,10 +41,10 @@ var (
 	ErrJoinTokenAlreadyUsed       = errors.New("join token already used")
 	ErrFavoriteAlreadyExists      = errors.New("server already favorited")
 	ErrFavoriteNotFound           = errors.New("favorite not found")
-	ErrLootTableNotFound          = errors.New("loot table not found")
-	ErrLootTableEntryNotFound     = errors.New("loot table entry not found")
-	ErrInsufficientCurrency       = errors.New("insufficient data currency")
-	ErrCosmeticAlreadyOwned       = errors.New("cosmetic already owned")
+	ErrLootTableNotFound          = loot.ErrLootTableNotFound
+	ErrLootTableEntryNotFound     = loot.ErrLootTableEntryNotFound
+	ErrInsufficientCurrency       = progression.ErrInsufficientCurrency
+	ErrCosmeticAlreadyOwned       = progression.ErrCosmeticAlreadyOwned
 	ErrFriendRequestAlreadyExists = errors.New("friend request already exists")
 	ErrFriendRequestNotFound      = errors.New("friend request not found")
 	ErrFriendRequestNotPending    = errors.New("friend request not pending")
@@ -51,22 +52,26 @@ var (
 )
 
 type Service struct {
-	config  config.Config
-	logger  *zap.Logger
-	dbConn  db.DBTX
-	queries *db.Queries
-	authSvc auth.Service
-	accSvc  account.Service
+	config         config.Config
+	logger         *zap.Logger
+	dbConn         db.DBTX
+	queries        *db.Queries
+	authSvc        auth.Service
+	accSvc         account.Service
+	progressionSvc progression.Service
+	lootSvc        loot.Service
 }
 
 func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service {
 	return &Service{
-		config:  cfg,
-		logger:  logger,
-		dbConn:  dbConn,
-		queries: db.New(),
-		authSvc: auth.NewAuthService(cfg, logger, dbConn),
-		accSvc:  account.NewAccountService(cfg, logger, dbConn),
+		config:         cfg,
+		logger:         logger,
+		dbConn:         dbConn,
+		queries:        db.New(),
+		authSvc:        auth.NewAuthService(cfg, logger, dbConn),
+		accSvc:         account.NewAccountService(cfg, logger, dbConn),
+		progressionSvc: progression.NewProgressionService(cfg, logger, dbConn),
+		lootSvc:        loot.NewLootService(cfg, logger, dbConn),
 	}
 }
 
@@ -205,54 +210,17 @@ func (s *Service) GetPlayerSettings(ctx context.Context, playerID int64) (*db.Pl
 
 // GetPlayerProgression retrieves player progression or creates a default row if not found.
 func (s *Service) GetPlayerProgression(ctx context.Context, playerID int64) (*db.PlayerProgression, error) {
-	progression, err := s.queries.GetPlayerProgression(ctx, s.dbConn, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Create default progression row
-			err = s.queries.CreatePlayerProgression(ctx, s.dbConn, playerID)
-			if err != nil {
-				// Log but continue with default values
-				s.logger.Warn("Failed to create player progression row",
-					zap.Int64("player_id", playerID),
-					zap.Error(err))
-			}
-			// Return default progression
-			return &db.PlayerProgression{
-				PlayerID:           playerID,
-				Level:              1,
-				Experience:         0,
-				PrestigeLevel:      0,
-				DataCurrency:       0,
-				TotalMatchesPlayed: 0,
-				TotalWavesSurvived: 0,
-				TotalKills:         0,
-				TotalDeaths:        0,
-				TotalScrapEarned:   0,
-				TotalDataEarned:    0,
-				UpdatedAt:          types.Timestamp{},
-			}, nil
-		}
-		return nil, fmt.Errorf("failed to get player progression: %w", err)
-	}
-	return progression, nil
+	return s.progressionSvc.GetPlayerProgression(ctx, playerID)
 }
 
 // GetCosmeticCatalog returns all cosmetic items available in the catalog.
 func (s *Service) GetCosmeticCatalog(ctx context.Context) ([]*db.CosmeticItem, error) {
-	items, err := s.queries.GetCosmeticCatalog(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cosmetic catalog: %w", err)
-	}
-	return items, nil
+	return s.progressionSvc.GetCosmeticCatalog(ctx)
 }
 
 // GetPlayerCosmetics returns cosmetic items owned by the player.
 func (s *Service) GetPlayerCosmetics(ctx context.Context, playerID int64) ([]*db.GetPlayerCosmeticsRow, error) {
-	items, err := s.queries.GetPlayerCosmetics(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get player cosmetics: %w", err)
-	}
-	return items, nil
+	return s.progressionSvc.GetPlayerCosmetics(ctx, playerID)
 }
 
 // UpsertPlayerSettings creates or updates player settings.
@@ -265,428 +233,30 @@ func (s *Service) Config() config.Config {
 	return s.config
 }
 
-// calculateLevelFromXP computes the player level based on their XP using linear scaling.
-// Level = floor(XP / BaseXPPerLevel) + 1, with minimum level of 1.
-func (s *Service) calculateLevelFromXP(xp int64) int64 {
-	if xp <= 0 {
-		return 1
-	}
-	base := int64(s.config.Progression.BaseXPPerLevel)
-	if base <= 0 {
-		base = 1000 // fallback
-	}
-	level := xp/base + 1
-	if level < 1 {
-		return 1
-	}
-	return level
-}
-
-// xpForNextLevel returns the XP needed to reach the next level from current XP.
-func (s *Service) xpForNextLevel(xp int64) int64 {
-	base := int64(s.config.Progression.BaseXPPerLevel)
-	if base <= 0 {
-		base = 1000
-	}
-	currentLevel := s.calculateLevelFromXP(xp)
-	xpForNextLevel := currentLevel * base
-	return xpForNextLevel - xp
-}
-
 // AddExperience adds XP to a player's progression and updates level if needed.
 func (s *Service) AddExperience(ctx context.Context, playerID int64, xpGain int64) error {
-	if xpGain <= 0 {
-		return nil
-	}
-	// Get current progression
-	progression, err := s.GetPlayerProgression(ctx, playerID)
-	if err != nil {
-		return fmt.Errorf("failed to get player progression: %w", err)
-	}
-	oldLevel := progression.Level
-	// Add XP
-	err = s.queries.IncrementExperience(ctx, s.dbConn, &db.IncrementExperienceParams{
-		Experience: xpGain,
-		PlayerID:   playerID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to increment experience: %w", err)
-	}
-	// Compute new level based on updated XP (need to fetch again or compute)
-	newXP := progression.Experience + xpGain
-	newLevel := s.calculateLevelFromXP(newXP)
-	if newLevel > oldLevel {
-		// Level up
-		err = s.queries.UpdateLevel(ctx, s.dbConn, &db.UpdateLevelParams{
-			Level:    newLevel,
-			PlayerID: playerID,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to update level after XP gain",
-				zap.Int64("player_id", playerID),
-				zap.Int64("new_level", newLevel),
-				zap.Error(err))
-			// Continue without returning error
-		}
-	}
-	return nil
-}
-
-// addExperienceWithTx adds XP to a player's progression using the given transaction.
-func (s *Service) addExperienceWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, xpGain int64) error {
-	if xpGain <= 0 {
-		return nil
-	}
-	// Get current progression (uses dbTx)
-	progression, err := s.queries.GetPlayerProgression(ctx, dbTx, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Create default progression row
-			if err := s.queries.CreatePlayerProgression(ctx, dbTx, playerID); err != nil {
-				return fmt.Errorf("failed to create player progression: %w", err)
-			}
-			// Return default progression
-			progression = &db.PlayerProgression{
-				PlayerID:           playerID,
-				Level:              1,
-				Experience:         0,
-				PrestigeLevel:      0,
-				DataCurrency:       0,
-				TotalMatchesPlayed: 0,
-				TotalWavesSurvived: 0,
-				TotalKills:         0,
-				TotalDeaths:        0,
-				TotalScrapEarned:   0,
-				TotalDataEarned:    0,
-				UpdatedAt:          types.Timestamp{},
-			}
-		} else {
-			return fmt.Errorf("failed to get player progression: %w", err)
-		}
-	}
-	oldLevel := progression.Level
-	// Add XP
-	err = s.queries.IncrementExperience(ctx, dbTx, &db.IncrementExperienceParams{
-		Experience: xpGain,
-		PlayerID:   playerID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to increment experience: %w", err)
-	}
-	// Compute new level based on updated XP
-	newXP := progression.Experience + xpGain
-	newLevel := s.calculateLevelFromXP(newXP)
-	if newLevel > oldLevel {
-		// Level up
-		err = s.queries.UpdateLevel(ctx, dbTx, &db.UpdateLevelParams{
-			Level:    newLevel,
-			PlayerID: playerID,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to update level after XP gain",
-				zap.Int64("player_id", playerID),
-				zap.Int64("new_level", newLevel),
-				zap.Error(err))
-			// Continue without returning error
-		}
-	}
-	return nil
+	return s.progressionSvc.AddExperience(ctx, playerID, xpGain)
 }
 
 // AddMatchRewards updates player progression with match results and awards XP and data currency.
-// This implements the XP calculation from match results as required by US-013.
 func (s *Service) AddMatchRewards(ctx context.Context, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error {
-	return s.addMatchRewardsWithTx(ctx, s.dbConn, playerID, kills, deaths, wavesSurvived, scrapEarned, dataEarned)
-}
-
-// addMatchRewardsWithTx updates player progression with match results using the given transaction.
-func (s *Service) addMatchRewardsWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error {
-	if kills < 0 || deaths < 0 || wavesSurvived < 0 || scrapEarned < 0 || dataEarned < 0 {
-		return fmt.Errorf("match stats cannot be negative")
-	}
-	// Calculate XP gain based on match performance
-	// Base XP per match completion
-	baseXP := int64(100)
-	// XP per kill
-	xpPerKill := int64(10)
-	// XP per wave survived
-	xpPerWave := int64(50)
-	// XP per scrap (small amount)
-	xpPerScrap := int64(1) // 1 XP per 10 scrap? We'll keep simple 1:1 for now
-
-	totalXP := baseXP + (kills * xpPerKill) + (wavesSurvived * xpPerWave) + (scrapEarned * xpPerScrap)
-
-	// Update match statistics
-	err := s.queries.IncrementMatchStats(ctx, dbTx, &db.IncrementMatchStatsParams{
-		TotalMatchesPlayed: 1,
-		TotalWavesSurvived: wavesSurvived,
-		TotalKills:         kills,
-		TotalDeaths:        deaths,
-		TotalScrapEarned:   scrapEarned,
-		TotalDataEarned:    dataEarned,
-		PlayerID:           playerID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to increment match stats: %w", err)
-	}
-	// Award XP (which handles level-ups)
-	err = s.addExperienceWithTx(ctx, dbTx, playerID, totalXP)
-	if err != nil {
-		return fmt.Errorf("failed to add experience: %w", err)
-	}
-	// Award data currency 1:1 with data earned
-	if dataEarned > 0 {
-		err = s.queries.AddDataCurrency(ctx, dbTx, &db.AddDataCurrencyParams{
-			DataCurrency: dataEarned,
-			PlayerID:     playerID,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to add data currency",
-				zap.Int64("player_id", playerID),
-				zap.Int64("data_earned", dataEarned),
-				zap.Error(err))
-			// Continue without returning error
-		}
-	}
-	return nil
+	return s.progressionSvc.AddMatchRewards(ctx, playerID, kills, deaths, wavesSurvived, scrapEarned, dataEarned)
 }
 
 // AddDataCurrencyWithTransaction adds data currency to a player and logs a transaction.
 func (s *Service) AddDataCurrencyWithTransaction(ctx context.Context, playerID int64, amount int64, transactionType string, referenceID *int64) error {
-	if amount == 0 {
-		return nil
-	}
-	// Try to get *sql.DB for transaction support
-	var dbTx db.DBTX
-	var tx *sql.Tx
-	var err error
-
-	if db, ok := s.dbConn.(*sql.DB); ok {
-		tx, err = db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		dbTx = tx
-	} else {
-		// Already a transaction or other DBTX; use directly without transaction
-		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
-		dbTx = s.dbConn
-	}
-
-	// Get current balance
-	balance, err := s.queries.GetDataCurrency(ctx, dbTx, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Create progression row
-			if err := s.queries.CreatePlayerProgression(ctx, dbTx, playerID); err != nil {
-				return fmt.Errorf("failed to create player progression: %w", err)
-			}
-			balance = 0
-		} else {
-			return fmt.Errorf("failed to get data currency: %w", err)
-		}
-	}
-	newBalance := balance + amount
-	// Update balance
-	if err := s.queries.SetDataCurrency(ctx, dbTx, &db.SetDataCurrencyParams{
-		DataCurrency: newBalance,
-		PlayerID:     playerID,
-	}); err != nil {
-		return fmt.Errorf("failed to set data currency: %w", err)
-	}
-	// Log transaction
-	if err := s.queries.CreateCurrencyTransaction(ctx, dbTx, &db.CreateCurrencyTransactionParams{
-		PlayerID:        playerID,
-		Amount:          amount,
-		BalanceAfter:    newBalance,
-		TransactionType: transactionType,
-		ReferenceID:     referenceID,
-	}); err != nil {
-		return fmt.Errorf("failed to create currency transaction: %w", err)
-	}
-	// Commit transaction if we started one
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-	s.logger.Debug("Data currency transaction completed",
-		zap.Int64("player_id", playerID),
-		zap.Int64("amount", amount),
-		zap.Int64("new_balance", newBalance),
-		zap.String("transaction_type", transactionType))
-	return nil
+	return s.progressionSvc.AddDataCurrency(ctx, playerID, amount, transactionType, referenceID)
 }
 
 // PrestigePlayer resets player level and experience, increments prestige level,
 // and grants exclusive cosmetic items based on the new prestige level.
 func (s *Service) PrestigePlayer(ctx context.Context, playerID int64) error {
-	// Try to get *sql.DB for transaction support
-	var dbTx db.DBTX
-	var tx *sql.Tx
-	var err error
-
-	if db, ok := s.dbConn.(*sql.DB); ok {
-		tx, err = db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		dbTx = tx
-	} else {
-		// Already a transaction or other DBTX; use directly without transaction
-		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
-		dbTx = s.dbConn
-	}
-
-	// Prestige player (reset level/XP, increment prestige)
-	err = s.queries.PrestigePlayer(ctx, dbTx, playerID)
-	if err != nil {
-		return fmt.Errorf("failed to prestige player: %w", err)
-	}
-
-	// Get updated progression to know new prestige level
-	progression, err := s.queries.GetPlayerProgression(ctx, dbTx, playerID)
-	if err != nil {
-		return fmt.Errorf("failed to get player progression: %w", err)
-	}
-
-	// Get prestige cosmetics not already owned
-	cosmetics, err := s.queries.GetPrestigeCosmetics(ctx, dbTx, &db.GetPrestigeCosmeticsParams{
-		PlayerID:    playerID,
-		UnlockLevel: progression.PrestigeLevel,
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("failed to get prestige cosmetics: %w", err)
-	}
-
-	// Grant each cosmetic
-	for _, cosmetic := range cosmetics {
-		err = s.queries.GrantCosmeticToPlayer(ctx, dbTx, &db.GrantCosmeticToPlayerParams{
-			PlayerID:    playerID,
-			CosmeticID:  cosmetic.CosmeticID,
-			UnlockedVia: "prestige",
-		})
-		if err != nil {
-			// Log but continue - duplicate cosmetic ownership may occur
-			s.logger.Warn("Failed to grant cosmetic to player",
-				zap.Int64("player_id", playerID),
-				zap.Int64("cosmetic_id", cosmetic.CosmeticID),
-				zap.Error(err))
-		}
-	}
-
-	// Commit transaction if we started one
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-
-	s.logger.Info("Player prestiged successfully",
-		zap.Int64("player_id", playerID),
-		zap.Int64("new_prestige_level", progression.PrestigeLevel),
-		zap.Int("cosmetics_granted", len(cosmetics)))
-	return nil
+	return s.progressionSvc.PrestigePlayer(ctx, playerID)
 }
 
 // EquipCosmetic equips a cosmetic item to the player's active loadout.
 func (s *Service) EquipCosmetic(ctx context.Context, playerID int64, cosmeticID int64) error {
-	// Get cosmetic item to determine slot
-	cosmetic, err := s.queries.GetCosmeticItem(ctx, s.dbConn, cosmeticID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCosmeticNotFound
-		}
-		return fmt.Errorf("failed to get cosmetic item: %w", err)
-	}
-
-	// Verify player owns the cosmetic
-	_, err = s.queries.GetPlayerCosmetic(ctx, s.dbConn, &db.GetPlayerCosmeticParams{
-		PlayerID:   playerID,
-		CosmeticID: cosmeticID,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCosmeticNotOwned
-		}
-		return fmt.Errorf("failed to check cosmetic ownership: %w", err)
-	}
-
-	// Get or create active loadout
-	loadout, err := s.queries.GetActiveLoadout(ctx, s.dbConn, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Create default loadout
-			params := &db.CreateLoadoutParams{
-				PlayerID: playerID,
-				Name:     "Default",
-				IsActive: 1,
-			}
-			err = s.queries.CreateLoadout(ctx, s.dbConn, params)
-			if err != nil {
-				return fmt.Errorf("failed to create default loadout: %w", err)
-			}
-			// Fetch newly created loadout (sqlite last_insert_rowid not directly available)
-			// We'll retrieve the active loadout again
-			loadout, err = s.queries.GetActiveLoadout(ctx, s.dbConn, playerID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve created loadout: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to get active loadout: %w", err)
-		}
-	}
-
-	// Use transaction to ensure atomic replace
-	var dbTx db.DBTX
-	var tx *sql.Tx
-	if db, ok := s.dbConn.(*sql.DB); ok {
-		tx, err = db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		dbTx = tx
-	} else {
-		// Already a transaction or other DBTX; use directly without transaction
-		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
-		dbTx = s.dbConn
-	}
-
-	// Remove any existing cosmetic in the same slot for this loadout
-	err = s.queries.DeleteLoadoutCosmeticBySlot(ctx, dbTx, &db.DeleteLoadoutCosmeticBySlotParams{
-		LoadoutID: loadout.LoadoutID,
-		Slot:      cosmetic.Slot,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to clear slot: %w", err)
-	}
-
-	// Insert new mapping
-	err = s.queries.InsertLoadoutCosmetic(ctx, dbTx, &db.InsertLoadoutCosmeticParams{
-		LoadoutID:  loadout.LoadoutID,
-		CosmeticID: cosmeticID,
-		Slot:       cosmetic.Slot,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to equip cosmetic: %w", err)
-	}
-
-	// Commit transaction if we started one
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-
-	s.logger.Info("Cosmetic equipped successfully",
-		zap.Int64("player_id", playerID),
-		zap.Int64("cosmetic_id", cosmeticID),
-		zap.Int64("loadout_id", loadout.LoadoutID),
-		zap.String("slot", cosmetic.Slot))
-	return nil
+	return s.progressionSvc.EquipCosmetic(ctx, playerID, cosmeticID)
 }
 
 // StoreMatchWithStats creates a new match record and associated player statistics.
@@ -749,6 +319,119 @@ func (s *Service) StoreMatchWithStats(ctx context.Context, serverID int64, match
 		zap.Int64("server_id", serverID),
 		zap.Int("player_count", len(playerStats)))
 	return nil
+}
+
+// addMatchRewardsWithTx is a temporary helper for StoreMatchWithStats until it moves to MatchService.
+func (s *Service) addMatchRewardsWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error {
+	if kills < 0 || deaths < 0 || wavesSurvived < 0 || scrapEarned < 0 || dataEarned < 0 {
+		return fmt.Errorf("match stats cannot be negative")
+	}
+	baseXP := int64(100)
+	xpPerKill := int64(10)
+	xpPerWave := int64(50)
+	xpPerScrap := int64(1)
+
+	totalXP := baseXP + (kills * xpPerKill) + (wavesSurvived * xpPerWave) + (scrapEarned * xpPerScrap)
+
+	err := s.queries.IncrementMatchStats(ctx, dbTx, &db.IncrementMatchStatsParams{
+		TotalMatchesPlayed: 1,
+		TotalWavesSurvived: wavesSurvived,
+		TotalKills:         kills,
+		TotalDeaths:        deaths,
+		TotalScrapEarned:   scrapEarned,
+		TotalDataEarned:    dataEarned,
+		PlayerID:           playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to increment match stats: %w", err)
+	}
+	err = s.addExperienceWithTx(ctx, dbTx, playerID, totalXP)
+	if err != nil {
+		return fmt.Errorf("failed to add experience: %w", err)
+	}
+	if dataEarned > 0 {
+		err = s.queries.AddDataCurrency(ctx, dbTx, &db.AddDataCurrencyParams{
+			DataCurrency: dataEarned,
+			PlayerID:     playerID,
+		})
+		if err != nil {
+			s.logger.Warn("Failed to add data currency",
+				zap.Int64("player_id", playerID),
+				zap.Int64("data_earned", dataEarned),
+				zap.Error(err))
+		}
+	}
+	return nil
+}
+
+// addExperienceWithTx is a temporary helper for StoreMatchWithStats.
+func (s *Service) addExperienceWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, xpGain int64) error {
+	if xpGain <= 0 {
+		return nil
+	}
+	progression, err := s.queries.GetPlayerProgression(ctx, dbTx, playerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			if err := s.queries.CreatePlayerProgression(ctx, dbTx, playerID); err != nil {
+				return fmt.Errorf("failed to create player progression: %w", err)
+			}
+			progression = &db.PlayerProgression{
+				PlayerID:           playerID,
+				Level:              1,
+				Experience:         0,
+				PrestigeLevel:      0,
+				DataCurrency:       0,
+				TotalMatchesPlayed: 0,
+				TotalWavesSurvived: 0,
+				TotalKills:         0,
+				TotalDeaths:        0,
+				TotalScrapEarned:   0,
+				TotalDataEarned:    0,
+				UpdatedAt:          types.Timestamp{},
+			}
+		} else {
+			return fmt.Errorf("failed to get player progression: %w", err)
+		}
+	}
+	oldLevel := progression.Level
+	err = s.queries.IncrementExperience(ctx, dbTx, &db.IncrementExperienceParams{
+		Experience: xpGain,
+		PlayerID:   playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to increment experience: %w", err)
+	}
+	newXP := progression.Experience + xpGain
+	newLevel := s.calculateLevelFromXP(newXP)
+	if newLevel > oldLevel {
+		err = s.queries.UpdateLevel(ctx, dbTx, &db.UpdateLevelParams{
+			Level:    newLevel,
+			PlayerID: playerID,
+		})
+		if err != nil {
+			s.logger.Warn("Failed to update level after XP gain",
+				zap.Int64("player_id", playerID),
+				zap.Int64("new_level", newLevel),
+				zap.Error(err))
+		}
+	}
+	return nil
+}
+
+// calculateLevelFromXP is a temporary helper for StoreMatchWithStats.
+func (s *Service) calculateLevelFromXP(xp int64) int64 {
+	if xp <= 0 {
+		return 1
+	}
+	base := int64(s.config.Progression.BaseXPPerLevel)
+	if base <= 0 {
+		base = 1000
+	}
+	level := xp/base + 1
+	if level < 1 {
+		return 1
+	}
+	return level
 }
 
 // GetPlayerMatchHistory retrieves a player's recent matches with their personal statistics.
@@ -1094,363 +777,73 @@ func (s *Service) ListPendingOutgoing(ctx context.Context, playerID int64) ([]*d
 
 // CreateLootTable creates a new loot table.
 func (s *Service) CreateLootTable(ctx context.Context, name string, description *string, dropChance float64, isActive bool) (*db.LootTable, error) {
-	isActiveInt := int64(0)
-	if isActive {
-		isActiveInt = 1
-	}
-	params := &db.CreateLootTableParams{
-		Name:        name,
-		Description: description,
-		DropChance:  dropChance,
-		IsActive:    isActiveInt,
-	}
-	lootTable, err := s.queries.CreateLootTable(ctx, s.dbConn, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create loot table: %w", err)
-	}
-	s.logger.Debug("Loot table created", zap.Int64("loot_table_id", lootTable.LootTableID))
-	return lootTable, nil
+	return s.lootSvc.CreateLootTable(ctx, name, description, dropChance, isActive)
 }
 
 // GetLootTable retrieves a loot table by ID.
 func (s *Service) GetLootTable(ctx context.Context, lootTableID int64) (*db.LootTable, error) {
-	lootTable, err := s.queries.GetLootTable(ctx, s.dbConn, lootTableID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrLootTableNotFound
-		}
-		return nil, fmt.Errorf("failed to get loot table: %w", err)
-	}
-	return lootTable, nil
+	return s.lootSvc.GetLootTable(ctx, lootTableID)
 }
 
 // ListLootTables returns all loot tables.
 func (s *Service) ListLootTables(ctx context.Context) ([]*db.LootTable, error) {
-	lootTables, err := s.queries.ListLootTables(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list loot tables: %w", err)
-	}
-	return lootTables, nil
+	return s.lootSvc.ListLootTables(ctx)
 }
 
 // ListActiveLootTables returns only active loot tables.
 func (s *Service) ListActiveLootTables(ctx context.Context) ([]*db.LootTable, error) {
-	lootTables, err := s.queries.ListActiveLootTables(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list active loot tables: %w", err)
-	}
-	return lootTables, nil
+	return s.lootSvc.ListActiveLootTables(ctx)
 }
 
 // UpdateLootTable updates an existing loot table.
 func (s *Service) UpdateLootTable(ctx context.Context, lootTableID int64, name string, description *string, dropChance float64, isActive bool) error {
-	isActiveInt := int64(0)
-	if isActive {
-		isActiveInt = 1
-	}
-	params := &db.UpdateLootTableParams{
-		Name:        name,
-		Description: description,
-		DropChance:  dropChance,
-		IsActive:    isActiveInt,
-		LootTableID: lootTableID,
-	}
-	err := s.queries.UpdateLootTable(ctx, s.dbConn, params)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrLootTableNotFound
-		}
-		return fmt.Errorf("failed to update loot table: %w", err)
-	}
-	s.logger.Debug("Loot table updated", zap.Int64("loot_table_id", lootTableID))
-	return nil
+	return s.lootSvc.UpdateLootTable(ctx, lootTableID, name, description, dropChance, isActive)
 }
 
 // DeleteLootTable deletes a loot table (hard delete).
 func (s *Service) DeleteLootTable(ctx context.Context, lootTableID int64) error {
-	err := s.queries.DeleteLootTable(ctx, s.dbConn, lootTableID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrLootTableNotFound
-		}
-		return fmt.Errorf("failed to delete loot table: %w", err)
-	}
-	s.logger.Debug("Loot table deleted", zap.Int64("loot_table_id", lootTableID))
-	return nil
+	return s.lootSvc.DeleteLootTable(ctx, lootTableID)
 }
 
 // CreateLootTableEntry creates a new entry in a loot table.
 func (s *Service) CreateLootTableEntry(ctx context.Context, lootTableID int64, cosmeticID int64, weight int64, minQuantity int64, maxQuantity int64) (*db.LootTableEntry, error) {
-	params := &db.CreateLootTableEntryParams{
-		LootTableID: lootTableID,
-		CosmeticID:  cosmeticID,
-		Weight:      weight,
-		MinQuantity: minQuantity,
-		MaxQuantity: maxQuantity,
-	}
-	entry, err := s.queries.CreateLootTableEntry(ctx, s.dbConn, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create loot table entry: %w", err)
-	}
-	s.logger.Debug("Loot table entry created", zap.Int64("loot_entry_id", entry.LootEntryID))
-	return entry, nil
+	return s.lootSvc.CreateLootTableEntry(ctx, lootTableID, cosmeticID, weight, minQuantity, maxQuantity)
 }
 
 // GetLootTableEntry retrieves a loot table entry by ID.
 func (s *Service) GetLootTableEntry(ctx context.Context, lootEntryID int64) (*db.LootTableEntry, error) {
-	entry, err := s.queries.GetLootTableEntry(ctx, s.dbConn, lootEntryID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrLootTableEntryNotFound
-		}
-		return nil, fmt.Errorf("failed to get loot table entry: %w", err)
-	}
-	return entry, nil
+	return s.lootSvc.GetLootTableEntry(ctx, lootEntryID)
 }
 
 // GetLootTableEntriesByLootTableID returns all entries for a loot table.
 func (s *Service) GetLootTableEntriesByLootTableID(ctx context.Context, lootTableID int64) ([]*db.LootTableEntry, error) {
-	entries, err := s.queries.GetLootTableEntriesByLootTableID(ctx, s.dbConn, lootTableID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get loot table entries: %w", err)
-	}
-	return entries, nil
+	return s.lootSvc.GetLootTableEntriesByLootTableID(ctx, lootTableID)
 }
 
 // GetLootTableEntriesWithCosmeticDetails returns entries with cosmetic details.
 func (s *Service) GetLootTableEntriesWithCosmeticDetails(ctx context.Context, lootTableID int64) ([]*db.GetLootTableEntriesWithCosmeticDetailsRow, error) {
-	entries, err := s.queries.GetLootTableEntriesWithCosmeticDetails(ctx, s.dbConn, lootTableID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get loot table entries with cosmetic details: %w", err)
-	}
-	return entries, nil
+	return s.lootSvc.GetLootTableEntriesWithCosmeticDetails(ctx, lootTableID)
 }
 
 // UpdateLootTableEntry updates an existing loot table entry.
 func (s *Service) UpdateLootTableEntry(ctx context.Context, lootEntryID int64, lootTableID int64, cosmeticID int64, weight int64, minQuantity int64, maxQuantity int64) error {
-	params := &db.UpdateLootTableEntryParams{
-		LootEntryID: lootEntryID,
-		LootTableID: lootTableID,
-		CosmeticID:  cosmeticID,
-		Weight:      weight,
-		MinQuantity: minQuantity,
-		MaxQuantity: maxQuantity,
-	}
-	err := s.queries.UpdateLootTableEntry(ctx, s.dbConn, params)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrLootTableEntryNotFound
-		}
-		return fmt.Errorf("failed to update loot table entry: %w", err)
-	}
-	s.logger.Debug("Loot table entry updated", zap.Int64("loot_entry_id", lootEntryID))
-	return nil
+	return s.lootSvc.UpdateLootTableEntry(ctx, lootEntryID, lootTableID, cosmeticID, weight, minQuantity, maxQuantity)
 }
 
 // DeleteLootTableEntry deletes a loot table entry.
 func (s *Service) DeleteLootTableEntry(ctx context.Context, lootEntryID int64) error {
-	err := s.queries.DeleteLootTableEntry(ctx, s.dbConn, lootEntryID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrLootTableEntryNotFound
-		}
-		return fmt.Errorf("failed to delete loot table entry: %w", err)
-	}
-	s.logger.Debug("Loot table entry deleted", zap.Int64("loot_entry_id", lootEntryID))
-	return nil
+	return s.lootSvc.DeleteLootTableEntry(ctx, lootEntryID)
 }
 
 // GenerateLootDrop generates a random cosmetic drop for the player based on active loot tables.
 func (s *Service) GenerateLootDrop(ctx context.Context, playerID int64) (*db.CosmeticItem, error) {
-	// Get all active loot tables
-	tables, err := s.ListActiveLootTables(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active loot tables: %w", err)
-	}
-	if len(tables) == 0 {
-		return nil, errors.New("no active loot tables")
-	}
-
-	// Select a loot table based on drop_chance
-	var selectedTable *db.LootTable
-	for _, table := range tables {
-		// roll random float [0,1)
-		roll := randmath.Float64()
-		if roll < table.DropChance {
-			selectedTable = table
-			break
-		}
-	}
-	if selectedTable == nil {
-		return nil, errors.New("no drop from any loot table")
-	}
-
-	// Get all entries for the selected loot table
-	entries, err := s.GetLootTableEntriesByLootTableID(ctx, selectedTable.LootTableID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get loot table entries: %w", err)
-	}
-	if len(entries) == 0 {
-		return nil, errors.New("loot table has no entries")
-	}
-
-	// Calculate total weight
-	var totalWeight int64
-	for _, entry := range entries {
-		totalWeight += entry.Weight
-	}
-	if totalWeight <= 0 {
-		return nil, errors.New("total weight must be positive")
-	}
-
-	// Pick random weighted entry
-	randomWeight := randmath.Int63n(totalWeight)
-	var selectedEntry *db.LootTableEntry
-	var cumulativeWeight int64
-	for _, entry := range entries {
-		cumulativeWeight += entry.Weight
-		if randomWeight < cumulativeWeight {
-			selectedEntry = entry
-			break
-		}
-	}
-	if selectedEntry == nil {
-		// fallback to last entry (should not happen)
-		selectedEntry = entries[len(entries)-1]
-	}
-
-	// Determine quantity (ignore for cosmetics)
-	// quantity := selectedEntry.MinQuantity + randmath.Int63n(selectedEntry.MaxQuantity - selectedEntry.MinQuantity + 1)
-
-	// Grant cosmetic to player
-	err = s.queries.GrantCosmeticToPlayer(ctx, s.dbConn, &db.GrantCosmeticToPlayerParams{
-		PlayerID:    playerID,
-		CosmeticID:  selectedEntry.CosmeticID,
-		UnlockedVia: "loot_drop",
-	})
-	if err != nil {
-		// If duplicate cosmetic (already owned), treat as success
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			s.logger.Debug("player already owns cosmetic", zap.Int64("player_id", playerID), zap.Int64("cosmetic_id", selectedEntry.CosmeticID))
-		} else {
-			return nil, fmt.Errorf("failed to grant cosmetic: %w", err)
-		}
-	}
-
-	// Get cosmetic details
-	cosmetic, err := s.queries.GetCosmeticItem(ctx, s.dbConn, selectedEntry.CosmeticID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("cosmetic not found")
-		}
-		return nil, fmt.Errorf("failed to get cosmetic item: %w", err)
-	}
-
-	s.logger.Debug("Loot drop generated", zap.Int64("player_id", playerID), zap.Int64("cosmetic_id", cosmetic.CosmeticID), zap.String("cosmetic_name", cosmetic.Name))
-	return cosmetic, nil
+	return s.lootSvc.GenerateLootDrop(ctx, playerID)
 }
 
 // PurchaseCosmetic purchases a cosmetic item with Data currency.
 // Deducts data_cost from player's balance, logs a transaction, and grants cosmetic ownership.
 func (s *Service) PurchaseCosmetic(ctx context.Context, playerID int64, cosmeticID int64) error {
-	// Get cosmetic item to know data_cost
-	cosmetic, err := s.queries.GetCosmeticItem(ctx, s.dbConn, cosmeticID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCosmeticNotFound
-		}
-		return fmt.Errorf("failed to get cosmetic item: %w", err)
-	}
-
-	// Check if player already owns cosmetic (optional, but we can pre-check to avoid constraint error)
-	_, err = s.queries.GetPlayerCosmetic(ctx, s.dbConn, &db.GetPlayerCosmeticParams{
-		PlayerID:   playerID,
-		CosmeticID: cosmeticID,
-	})
-	if err == nil {
-		return ErrCosmeticAlreadyOwned
-	}
-	// If error is not "no rows", we might have a real error, but continue anyway
-
-	// Get current balance
-	balance, err := s.queries.GetDataCurrency(ctx, s.dbConn, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Create progression row
-			if err := s.queries.CreatePlayerProgression(ctx, s.dbConn, playerID); err != nil {
-				return fmt.Errorf("failed to create player progression: %w", err)
-			}
-			balance = 0
-		} else {
-			return fmt.Errorf("failed to get data currency: %w", err)
-		}
-	}
-
-	if balance < cosmetic.DataCost {
-		return ErrInsufficientCurrency
-	}
-
-	// Use transaction to ensure atomicity
-	var dbTx db.DBTX
-	var tx *sql.Tx
-	if db, ok := s.dbConn.(*sql.DB); ok {
-		tx, err = db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		dbTx = tx
-	} else {
-		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
-		dbTx = s.dbConn
-	}
-
-	// Deduct data_cost
-	newBalance := balance - cosmetic.DataCost
-	if err := s.queries.SetDataCurrency(ctx, dbTx, &db.SetDataCurrencyParams{
-		DataCurrency: newBalance,
-		PlayerID:     playerID,
-	}); err != nil {
-		return fmt.Errorf("failed to set data currency: %w", err)
-	}
-
-	// Log transaction (negative amount)
-	if err := s.queries.CreateCurrencyTransaction(ctx, dbTx, &db.CreateCurrencyTransactionParams{
-		PlayerID:        playerID,
-		Amount:          -cosmetic.DataCost,
-		BalanceAfter:    newBalance,
-		TransactionType: "purchase",
-		ReferenceID:     &cosmeticID,
-	}); err != nil {
-		return fmt.Errorf("failed to create currency transaction: %w", err)
-	}
-
-	// Grant cosmetic
-	if err := s.queries.GrantCosmeticToPlayer(ctx, dbTx, &db.GrantCosmeticToPlayerParams{
-		PlayerID:    playerID,
-		CosmeticID:  cosmeticID,
-		UnlockedVia: "purchase",
-	}); err != nil {
-		// If duplicate cosmetic (race condition), treat as already owned
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return ErrCosmeticAlreadyOwned
-		}
-		return fmt.Errorf("failed to grant cosmetic: %w", err)
-	}
-
-	// Commit transaction if we started one
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-
-	s.logger.Debug("Cosmetic purchased successfully",
-		zap.Int64("player_id", playerID),
-		zap.Int64("cosmetic_id", cosmeticID),
-		zap.Int64("data_cost", cosmetic.DataCost),
-		zap.Int64("new_balance", newBalance))
-	return nil
+	return s.progressionSvc.PurchaseCosmetic(ctx, playerID, cosmeticID)
 }
 
 // IsAdmin checks if a player is an administrator.
