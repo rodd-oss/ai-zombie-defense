@@ -1,0 +1,77 @@
+{
+  "project": "AI Zombie Defense",
+  "branchName": "ralph/backend-api-consolidation",
+  "description": "Refactor Go backend into a unified backend-api application in the apps/ directory, consolidating server and database modules.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Backend-API Application",
+      "description": "As a developer, I want a single entry point and module for the backend so that I can manage dependencies and builds more easily.",
+      "acceptanceCriteria": [
+        "Create apps/backend-api directory",
+        "Initialize go.mod with name 'ai-zombie-defense/backend-api'",
+        "Update go.work to include './apps/backend-api' and remove './packages/go/db' and './packages/go/server'",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Migrate Database Logic",
+      "description": "As a developer, I want the database schema, migrations, and generated code to live within the backend app since they are tightly coupled.",
+      "acceptanceCriteria": [
+        "Move all files from packages/go/db to apps/backend-api/db/",
+        "Update sqlc.yaml to point to new relative paths for queries and schema",
+        "Refactor all imports within the db package to use 'ai-zombie-defense/backend-api/db'",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Migrate Core Server Packages",
+      "description": "As a developer, I want core server infrastructure to be relocated to the unified backend-api app.",
+      "acceptanceCriteria": [
+        "Move cmd/, pkg/config, pkg/logging, internal/api, internal/middleware, and internal/testutils from packages/go/server to apps/backend-api/",
+        "Update all imports in these moved files to use 'ai-zombie-defense/backend-api/...' instead of 'ai-zombie-defense/server' or 'ai-zombie-defense/db'",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Migrate Internal Service Packages",
+      "description": "As a developer, I want the business logic services to be relocated to the unified backend-api app.",
+      "acceptanceCriteria": [
+        "Move internal/services/ from packages/go/server to apps/backend-api/internal/services/",
+        "Update all imports in service files to use 'ai-zombie-defense/backend-api/...' instead of 'ai-zombie-defense/server' or 'ai-zombie-defense/db'",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Final Verification and Cleanup",
+      "description": "As a developer, I want to ensure the workspace is clean and the new app is fully functional.",
+      "acceptanceCriteria": [
+        "Verify 'go build ./...' succeeds in apps/backend-api",
+        "Verify 'go test ./...' succeeds in apps/backend-api",
+        "Verify 'bun task check' passes for the repository",
+        "Ensure packages/go/ server and db subdirectories are empty of logic but remain as directories",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+# Ralph Progress Log
+Started: Fri Jan 23 14:13:01 MSK 2026
+
+## Codebase Patterns
+- Use `mkdir -p` before moving files to ensure destination exists.
+- Use `generated` sub-package for `sqlc` output to separate from manual code.
+- Custom types for SQLite timestamps are in `internal/db/types`.
+- Use global search and replace (e.g., `sed`) to update import paths when moving packages.
+---
+
+## Fri Jan 23 14:14:32 MSK 2026 - US-001
+- Moved database SQL files and migrations to flatten the app structure.
+- Files changed:
+  - Moved apps/backend-api/db/migrations/* to apps/backend-api/migrations/
+  - Moved apps/backend-api/db/queries/* to apps/backend-api/internal/db/sql/queries/
+  - Moved apps/backend-api/db/schema/* to apps/backend-api/internal/db/sql/schema/
+- **Learnings for future iterations:**
+  - When flattening the structure, ensure that any tools (like sqlc or goose) that depend on these paths are updated in subsequent steps.
+  - Using `mkdir -p` ensures that the destination path exists before moving, avoiding file-into-file move errors.
+---
+
+## Fri Jan 23 14:16:55 MSK 2026 - US-002
+- Relocated database types and updated sqlc configuration.
+- Files changed:
+  - Moved apps/backend-api/db/types/ to apps/backend-api/internal/db/types/
+  - Moved apps/backend-api/db/sqlc.yaml to apps/backend-api/sqlc.yaml
+  - Updated apps/backend-api/sqlc.yaml with new paths and type overrides
+  - Generated new database code in apps/backend-api/internal/db/generated/
+  - Updated import paths in all services to use the new internal/db/types package
+- **Learnings for future iterations:**
+  - When moving types, use a global search and replace to update import paths across the entire application to maintain type safety and buildability.
+  - Generating code in a `generated` sub-package helps separate manually written code from machine-generated code.
+  - Updating sqlc.yaml requires careful attention to the `import` paths for custom type overrides.
+---

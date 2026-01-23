@@ -1,0 +1,132 @@
+{
+  "project": "AI Zombie Defense",
+  "branchName": "ralph/backend-refactor-modular-monolith",
+  "description": "Backend Refactor - Transition the Go backend to a Modular Monolith structure as defined in C4 documentation (Account, Auth, Progression, etc.) and implement an API Gateway for unified routing.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Define Service Interfaces and Directory Structure",
+      "description": "As a developer, I want a clear directory structure and interfaces for each service module so that business logic can be isolated.",
+      "acceptanceCriteria": [
+        "Create internal/services directory with sub-packages: auth, account, progression, match, server, social, leaderboard, loot",
+        "Define Go interfaces for each service representing their public API",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Migrate Auth Service Logic",
+      "description": "As a developer, I want to move Auth logic to its own service module to decouple it from the handler.",
+      "acceptanceCriteria": [
+        "Implement AuthService interface in internal/services/auth",
+        "Move logic from packages/go/server/pkg/auth to internal/services/auth",
+        "Verify existing auth tests pass with the new service structure",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Migrate Account Service Logic",
+      "description": "As a developer, I want to move Account logic to its own service module.",
+      "acceptanceCriteria": [
+        "Implement AccountService interface in internal/services/account",
+        "Migrate profile and settings logic from handlers to the new service",
+        "Ensure database queries are restricted to account domain",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Migrate Progression and Loot Service Logic",
+      "description": "As a developer, I want to isolate progression and loot logic in their respective service modules.",
+      "acceptanceCriteria": [
+        "Implement ProgressionService and LootService interfaces in internal/services",
+        "Migrate XP, prestige, and drop logic from existing handlers/services",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Migrate Server and Match Service Logic",
+      "description": "As a developer, I want to isolate server registry and match history logic.",
+      "acceptanceCriteria": [
+        "Implement ServerService and MatchService interfaces in internal/services",
+        "Migrate heartbeat, join tokens, and match storage logic",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement API Gateway and Routing Aggregation",
+      "description": "As a developer, I want a central API Gateway that aggregates routes from all service handlers.",
+      "acceptanceCriteria": [
+        "Create internal/api/gateway with APIGateway struct",
+        "Setup Fiber router in the gateway that mounts service-specific route groups",
+        "Apply global middleware (logging, CORS) in the gateway",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Update Handlers to use Service Interfaces",
+      "description": "As a developer, I want handlers to depend on service interfaces via constructor injection.",
+      "acceptanceCriteria": [
+        "Refactor existing handlers in server/pkg/handlers to accept service interfaces",
+        "Remove direct database or heavy logic from handlers",
+        "Update tests to mock or inject service interfaces",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Wiring and Dependency Injection in main.go",
+      "description": "As a developer, I want to wire all services and handlers together in the main entry point.",
+      "acceptanceCriteria": [
+        "Update cmd/server/main.go to initialize all services with the shared DB pool",
+        "Inject services into handlers and handlers into the Gateway",
+        "Start the Fiber server via the Gateway",
+        "Verify server starts and /health endpoint works",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Final Verification and Feature Parity",
+      "description": "As a user, I want to ensure the refactored system retains all original functionality.",
+      "acceptanceCriteria": [
+        "All existing integration tests in the repository pass",
+        "Run bun task check and ensure no linting or type errors",
+        "Verify API alignment with C4 documentation"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+## Codebase Patterns
+- Move generated SQLC code to `internal/db` and export via type aliases in the root `db` package to keep the module API clean while hiding implementation details.
+- Always run `go vet ./...` and `go build ./...` when changing package structures in Go.
+- Use `APIGateway` as the central entry point for routing and server lifecycle management (Start/Shutdown).
+- Middleware should be kept in `internal/middleware` to hide internal logic while providing necessary Fiber handlers for routing.
+- Service-specific handlers should be kept in `internal/services/<name>/handlers/`.
+- Use `internal/testutils` for shared Go test logic (DB setup, mock data) to ensure consistency and reduce duplication across service tests.
+
+## 2026-01-23 13:30 - US-001
+- Refactored Database Package structure by moving SQLC generated files to `internal/db/`.
+- Updated `sqlc.yaml` to reflect the new output directory.
+- Created a facade in the root `db` package to export types and functions from `internal/db`.
+- Removed the obsolete `generated_backup` directory.
+- Files changed:
+    - `packages/go/db/sqlc.yaml`
+    - `packages/go/db/db.go`
+    - `packages/go/db/models.go`
+    - `packages/go/db/*.sql.go`
+    - `packages/go/db/AGENTS.md`
+- **Learnings for future iterations:**
+  - Use type aliases (`type T = internal.T`) in a parent package to selectively export types from an `internal` subpackage.
+  - Functions must be wrapped (`func F() { return internal.F() }`) as they cannot be aliased like types.
+---
+
+## 2026-01-23 13:25 - US-002
+- Consolidated `APIGateway` by merging logic from the obsolete `server` package.
+- Deleted `packages/go/server/pkg/server/` and updated all references to use `gateway.APIGateway`.
+- Updated `APIGateway` to handle its own `Start` and `Shutdown` methods, orchestrating Fiber's lifecycle.
+- Moved route registration to `APIGateway` to centralize initial entry point logic.
+- Verified server starts and `/health` endpoint works correctly.
+- Files changed:
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/cmd/server/main.go`
+    - `packages/go/server/pkg/handlers/servers_test.go`
+    - `packages/go/server/pkg/handlers/account_test.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - `APIGateway` should be the owner of the `fiber.App` lifecycle in the modular monolith.
+  - When deleting a package, check for integration tests that might depend on it for bootstrapping the app.
+  - Mocking or using the new gateway in tests is straightforward if it exposes the underlying router/app.
+---
+
+## 2026-01-23 14:00 - US-003
+- Migrated all middleware from `pkg/middleware/` to `internal/middleware/`.
+- Updated all import references in `gateway.go`, `handlers/`, and tests to the new location.
+- Verified typecheck and middleware tests pass.
+- Removed the now-empty `pkg/middleware/` directory.
+- Files changed:
+    - `packages/go/server/internal/middleware/*.go`
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/pkg/handlers/*.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Moving middleware to `internal` is a key step in encapsulation for the modular monolith.
+  - All handlers that use `c.Locals` should have helper functions in the middleware package to ensure type-safe access to context values.
+---
+
+## 2026-01-23 13:36 - US-004
+- Migrated all handlers from `pkg/handlers/` to service-specific `internal/services/<name>/handlers/`.
+- Split the monolithic `account.go` handler into `account`, `progression`, and `match` handlers.
+- Updated `APIGateway` to instantiate and route to the new internal handlers.
+- Updated all middleware to use internal service interfaces instead of the legacy monolithic auth service.
+- Created `internal/testutils` for shared test helpers (DB setup, player creation, etc.) to reduce duplication across service tests.
+- Verified all Go tests pass and build succeeds.
+- Files changed:
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/internal/middleware/*.go`
+    - `packages/go/server/internal/services/*/handlers/*.go`
+    - `packages/go/server/internal/testutils/testutils.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Use `internal/testutils` for shared Go test logic to avoid circular dependencies between services and the gateway.
+  - When moving handlers to `internal`, update middleware first to ensure type compatibility with internal service interfaces.
+  - Fiber route registration in the gateway needs to be updated to use specific handler instances for each service group.
+---
+
+## 2026-01-23 13:42 - US-005
+- Decentralized error definitions by moving them from monolithic locations and implementation files to service-specific `service.go` files.
+- Moved `ErrDuplicateUsername` and `ErrDuplicateEmail` to `internal/services/account/service.go`.
+- Moved `ErrMatchNotFound` to `internal/services/match/service.go`.
+- Moved progression, loot, and server errors to their respective `service.go` files.
+- Updated `auth` service and handlers to import and use `account` errors for registration.
+- Updated `pkg/auth/auth.go` facade to alias errors from their new decentralized locations.
+- Files changed:
+    - `packages/go/server/internal/services/auth/service.go`
+    - `packages/go/server/internal/services/auth/implementation.go`
+    - `packages/go/server/internal/services/auth/handlers/auth.go`
+    - `packages/go/server/internal/services/auth/service_test.go`
+    - `packages/go/server/internal/services/account/service.go`
+    - `packages/go/server/internal/services/account/implementation.go`
+    - `packages/go/server/internal/services/match/service.go`
+    - `packages/go/server/internal/services/progression/service.go`
+    - `packages/go/server/internal/services/progression/implementation.go`
+    - `packages/go/server/internal/services/loot/service.go`
+    - `packages/go/server/internal/services/loot/implementation.go`
+    - `packages/go/server/internal/services/server/service.go`
+    - `packages/go/server/internal/services/server/implementation.go`
+    - `packages/go/server/pkg/auth/auth.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Errors should be defined in the `service.go` (interface) file of a package to make them part of the public API and easily discoverable.
+  - When moving errors that are used across packages (like `account` errors used in `auth` registration), ensure you check for circular dependencies.
+  - Test files often need manual updates when package-level variables like errors are moved.
+---
+
+## 2026-01-23 15:00 - US-006
+- Removed the monolithic auth facade in `packages/go/server/pkg/auth/auth.go`.
+- Deleted the empty `packages/go/server/pkg/auth/` directory.
+- Migrated tests for progression, loot, and match rewards from `pkg/auth/auth_service_test.go` to new service-specific `service_test.go` files.
+- Updated `internal/middleware/auth_test.go` to use `internal/services/auth.NewAuthService`.
+- Verified all Go tests pass and build succeeds.
+- **Learnings for future iterations:**
+  - When removing a facade, ensure all tests that relied on it are migrated to their respective internal services.
+  - `IncrementMatchStats` and other `UPDATE` queries in SQLite don't fail if the row doesn't exist; ensure the row exists before updating or use UPSERT logic.
+  - Transitioning to a modular monolith requires strict adherence to `internal` package boundaries to prevent accidental public API exposure.
+---

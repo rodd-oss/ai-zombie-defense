@@ -1,0 +1,81 @@
+{
+  "project": "AI Zombie Defense",
+  "branchName": "ralph/flatten-db-structure",
+  "description": "Consolidate and flatten the database structure in backend-api, moving logic into internal/db and integrating migrations into the main server binary.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Move Database SQL and Migrations",
+      "description": "As a developer, I want database SQL files and migrations in the root of the app so the structure is flatter.",
+      "acceptanceCriteria": [
+        "Move apps/backend-api/db/migrations/ to apps/backend-api/migrations/",
+        "Move apps/backend-api/db/queries/ to apps/backend-api/internal/db/sql/queries/",
+        "Move apps/backend-api/db/schema/ to apps/backend-api/internal/db/sql/schema/",
+        "Ensure directories exist before moving",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Relocate Types and Update SQLC",
+      "description": "As a developer, I want database types in internal/db and a working sqlc configuration in the app root.",
+      "acceptanceCriteria": [
+        "Move apps/backend-api/db/types/ to apps/backend-api/internal/db/types/",
+        "Move apps/backend-api/db/sqlc.yaml to apps/backend-api/sqlc.yaml",
+        "Update apps/backend-api/sqlc.yaml with new paths: schema, queries, out: internal/db/generated, and type overrides",
+        "Run sqlc generate and ensure internal/db/generated/ is populated",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Consolidate Database Utilities",
+      "description": "As a developer, I want database connection and migration runner logic in internal/db.",
+      "acceptanceCriteria": [
+        "Relocate logic from apps/backend-api/db/pkg/database/ to apps/backend-api/internal/db/connection.go",
+        "Relocate logic from apps/backend-api/db/pkg/migrations/ to apps/backend-api/internal/db/migration_runner.go",
+        "Update internal/db packages to use the new generated code and internal types",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Integrate Migration Subcommand",
+      "description": "As an operator, I want to run migrations via the main server binary.",
+      "acceptanceCriteria": [
+        "Add subcommand parsing to apps/backend-api/cmd/server/main.go",
+        "Implement 'migrate' command with 'up', 'down', 'status' subcommands",
+        "Link subcommand to internal/db/migration_runner.go logic",
+        "Verify subcommand is accessible via go run cmd/server/main.go migrate status",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Update Service Dependencies & Cleanup",
+      "description": "As a developer, I want all services to use the new internal/db package and remove the old structure.",
+      "acceptanceCriteria": [
+        "Update all imports in apps/backend-api/internal/services/... to use internal/db and internal/db/types",
+        "Remove old apps/backend-api/db/ directory",
+        "Verify build with 'go build ./...' in apps/backend-api",
+        "Verify tests with 'go test ./...' in apps/backend-api",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

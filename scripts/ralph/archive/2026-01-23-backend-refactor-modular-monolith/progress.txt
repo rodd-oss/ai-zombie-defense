@@ -1,0 +1,9 @@
+# Ralph Progress: Go Backend Architectural Refactor (V2)
+
+## Overall Progress
+- [ ] US-001: Refactor Database Package Structure
+- [ ] US-002: Consolidate APIGateway and Delete Server Package
+- [ ] US-003: Migrate Middleware to Internal
+- [ ] US-004: Migrate Handlers and Services to Internal
+- [ ] US-005: Decentralize Error Definitions
+- [ ] US-006: Remove Auth Facade and Final Cleanup

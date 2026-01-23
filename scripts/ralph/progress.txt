@@ -1,0 +1,55 @@
+# Ralph Progress Log
+Started: Fri Jan 23 14:23:33 MSK 2026
+
+## Codebase Patterns
+- Use `internal/db` as the primary entry point for database operations.
+- `internal/db/db.go` provides aliases for all generated `sqlc` types to simplify imports.
+- `internal/db/types` contains custom types (like `Timestamp`) used in database models.
+
+---
+
+## Fri Jan 23 14:50:23 MSK 2026 - US-003
+- Relocated database utilities logic and tests to internal/db.
+- Created internal/db/db.go with convenience aliases for generated types and Queries.
+- Updated cmd/server/main.go and db/cmd/migrate/main.go to use the new internal/db package.
+- Verified that all tests in internal/db pass.
+- Files changed:
+  - apps/backend-api/internal/db/db.go (created)
+  - apps/backend-api/cmd/server/main.go
+  - apps/backend-api/db/cmd/migrate/main.go
+  - apps/backend-api/internal/db/AGENTS.md
+- **Learnings for future iterations:**
+  - The project is moving towards a flatter structure where database logic is consolidated in internal/db.
+  - Avoid using the old db/pkg package; it's scheduled for removal in US-005.
+  - The internal/db package now acts as a facade for the generated sqlc code.
+---
+
+## Fri Jan 23 15:15:23 MSK 2026 - US-004
+- Integrated migration subcommand into the main server binary in `apps/backend-api/cmd/server/main.go`.
+- Implemented `up`, `down`, and `status` subcommands for the `migrate` command.
+- Verified subcommand functionality with `go run cmd/server/main.go migrate status`.
+- Updated `apps/backend-api/AGENTS.md` with migration subcommand documentation.
+- Files changed:
+  - apps/backend-api/cmd/server/main.go
+  - apps/backend-api/AGENTS.md
+- **Learnings for future iterations:**
+  - Subcommand parsing in `main.go` uses simple `os.Args` switching.
+  - The `migrate` subcommand provides a convenient way to manage database schema without a separate binary.
+  - Ensure `JWT_SECRET` is set (even if dummy) when running the server binary for migrations, as config loading requires it.
+---
+
+## Fri Jan 23 15:40:00 MSK 2026 - US-005
+- Updated all service imports in `apps/backend-api/internal/services` to use the new `internal/db` package.
+- Updated API gateway imports and Backend API guidelines (AGENTS.md).
+- Removed the deprecated `apps/backend-api/db/` directory and its contents.
+- Verified that the backend build and all service tests pass.
+- Files changed:
+  - apps/backend-api/internal/services/... (multiple files)
+  - apps/backend-api/internal/api/gateway/gateway.go
+  - apps/backend-api/AGENTS.md
+  - apps/backend-api/db/ (removed)
+- **Learnings for future iterations:**
+  - The database refactor is complete: all database logic, generated code, and migrations are now managed within `internal/db` and the root `migrations/` directory.
+  - The main server binary now handles migrations via the `migrate` subcommand.
+  - Using aliases in `internal/db/db.go` successfully decoupled services from the underlying `generated` package.
+---

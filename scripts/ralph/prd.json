@@ -1,469 +1,80 @@
 {
   "project": "AI Zombie Defense",
-  "branchName": "ralph/backend-api",
-  "description": "Backend API Development Plan - Comprehensive Go backend for AI Zombie Defense game with authentication, progression, server registry, loot system, and social features.",
+  "branchName": "ralph/flatten-db-structure",
+  "description": "Consolidate and flatten the database structure in backend-api, moving logic into internal/db and integrating migrations into the main server binary.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Convert ERD to SQL migration files",
-      "description": "As a developer, I need SQL migration files for all database tables from the ERD diagram.",
+      "title": "Move Database SQL and Migrations",
+      "description": "As a developer, I want database SQL files and migrations in the root of the app so the structure is flatter.",
       "acceptanceCriteria": [
-        "Create migration files for players, sessions, player_progression, cosmetic_items, player_cosmetics, servers, matches, player_match_stats, friends, server_favorites, loot_tables, loot_table_entries tables",
-        "Each migration includes proper foreign key constraints and indexes",
-        "SQL files follow naming convention: YYYYMMDDHHMMSS_table_name.sql",
+        "Move apps/backend-api/db/migrations/ to apps/backend-api/migrations/",
+        "Move apps/backend-api/db/queries/ to apps/backend-api/internal/db/sql/queries/",
+        "Move apps/backend-api/db/schema/ to apps/backend-api/internal/db/sql/schema/",
+        "Ensure directories exist before moving",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Set up sqlc configuration and generate Go models",
-      "description": "As a developer, I need sqlc configured to generate type-safe Go models from SQL queries.",
+      "title": "Relocate Types and Update SQLC",
+      "description": "As a developer, I want database types in internal/db and a working sqlc configuration in the app root.",
       "acceptanceCriteria": [
-        "Create sqlc.yaml configuration file with correct database schema path",
-        "Generate Go models for all database tables",
-        "Models include proper field tags and nullable types where appropriate",
-        "Typecheck passes",
-        "Tests pass"
+        "Move apps/backend-api/db/types/ to apps/backend-api/internal/db/types/",
+        "Move apps/backend-api/db/sqlc.yaml to apps/backend-api/sqlc.yaml",
+        "Update apps/backend-api/sqlc.yaml with new paths: schema, queries, out: internal/db/generated, and type overrides",
+        "Run sqlc generate and ensure internal/db/generated/ is populated",
+        "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Implement goose migration runner",
-      "description": "As a developer, I need a migration runner to apply SQL migrations to the database.",
+      "title": "Consolidate Database Utilities",
+      "description": "As a developer, I want database connection and migration runner logic in internal/db.",
       "acceptanceCriteria": [
-        "Set up goose with SQLite driver",
-        "Create migration command that runs migrations on application startup",
-        "Support rollback capability for development",
-        "Typecheck passes",
-        "Tests pass"
+        "Relocate logic from apps/backend-api/db/pkg/database/ to apps/backend-api/internal/db/connection.go",
+        "Relocate logic from apps/backend-api/db/pkg/migrations/ to apps/backend-api/internal/db/migration_runner.go",
+        "Update internal/db packages to use the new generated code and internal types",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Create database connection with connection pooling",
-      "description": "As a developer, I need a database connection pool for efficient query execution.",
+      "title": "Integrate Migration Subcommand",
+      "description": "As an operator, I want to run migrations via the main server binary.",
       "acceptanceCriteria": [
-        "Establish SQLite connection with WAL mode enabled",
-        "Configure connection pool with appropriate size and timeouts",
-        "Connection is reusable across the application",
-        "Typecheck passes",
-        "Tests pass"
+        "Add subcommand parsing to apps/backend-api/cmd/server/main.go",
+        "Implement 'migrate' command with 'up', 'down', 'status' subcommands",
+        "Link subcommand to internal/db/migration_runner.go logic",
+        "Verify subcommand is accessible via go run cmd/server/main.go migrate status",
+        "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Set up structured logging and configuration management",
-      "description": "As a developer, I need structured logging and environment-based configuration.",
+      "title": "Update Service Dependencies & Cleanup",
+      "description": "As a developer, I want all services to use the new internal/db package and remove the old structure.",
       "acceptanceCriteria": [
-        "Configure Zap logger with JSON output format",
-        "Set up Viper for environment variable loading",
-        "Create config struct with database, server, and JWT settings",
-        "Typecheck passes",
-        "Tests pass"
+        "Update all imports in apps/backend-api/internal/services/... to use internal/db and internal/db/types",
+        "Remove old apps/backend-api/db/ directory",
+        "Verify build with 'go build ./...' in apps/backend-api",
+        "Verify tests with 'go test ./...' in apps/backend-api",
+        "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-006",
-      "title": "Create basic Fiber server with health check endpoint",
-      "description": "As a developer, I need a basic HTTP server with health check endpoint.",
-      "acceptanceCriteria": [
-        "Initialize Fiber server with default middleware",
-        "Add GET /health endpoint returning 200 OK",
-        "Server reads configuration for port and host",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 6,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "Implement user registration endpoint with password hashing",
-      "description": "As a player, I want to register a new account with secure password storage.",
-      "acceptanceCriteria": [
-        "POST /auth/register endpoint accepts username, email, password",
-        "Password hashed with bcrypt before storage",
-        "Validates unique username and email",
-        "Returns JWT token upon successful registration",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 8,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Implement JWT token generation and login endpoint",
-      "description": "As a player, I want to login with my credentials and receive a JWT token.",
-      "acceptanceCriteria": [
-        "POST /auth/login endpoint accepts username/email and password",
-        "Verifies password against bcrypt hash",
-        "Generates JWT token with player_id and expiration",
-        "Returns token in standard response format",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 7,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Implement token refresh and logout endpoints",
-      "description": "As a player, I want to refresh my session token and logout securely.",
-      "acceptanceCriteria": [
-        "POST /auth/refresh endpoint accepts valid refresh token",
-        "Generates new access token with extended expiration",
-        "POST /auth/logout invalidates the session token",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "Create JWT middleware for protected endpoints",
-      "description": "As a developer, I need middleware to protect API endpoints with JWT validation.",
-      "acceptanceCriteria": [
-        "Fiber middleware validates JWT token in Authorization header",
-        "Extracts player_id and adds to request context",
-        "Returns 401 for invalid or expired tokens",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Implement account profile management API",
-      "description": "As a player, I want to view and update my profile information.",
-      "acceptanceCriteria": [
-        "GET /account/profile returns player profile data",
-        "PUT /account/profile updates profile fields",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 11,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Implement player settings storage and retrieval",
-      "description": "As a player, I want to store and retrieve my game settings.",
-      "acceptanceCriteria": [
-        "GET /account/settings returns player settings",
-        "PUT /account/settings updates settings",
-        "Settings stored in player_settings table",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 12,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "Implement level and XP progression system",
-      "description": "As a player, I want to gain experience and level up.",
-      "acceptanceCriteria": [
-        "GET /progression returns player level, XP, and progression stats",
-        "XP gains calculated from match results",
-        "Level-up thresholds defined in configuration",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 13,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Create prestige system for cosmetic rewards",
-      "description": "As a player, I want to prestige for exclusive cosmetic rewards.",
-      "acceptanceCriteria": [
-        "POST /progression/prestige resets progression and increments prestige level",
-        "Grants exclusive cosmetic items based on prestige level",
-        "Updates player_progression table",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 14,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-015",
-      "title": "Build currency management (Data currency) with balance updates",
-      "description": "As a player, I want to earn and spend Data currency.",
-      "acceptanceCriteria": [
-        "Data currency balance tracked in player_progression table",
-        "Currency transactions logged for audit",
-        "GET /progression/currency returns currency balances",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 15,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-016",
-      "title": "Develop cosmetic catalog and ownership system",
-      "description": "As a player, I want to browse and own cosmetic items.",
-      "acceptanceCriteria": [
-        "GET /cosmetics/catalog returns available cosmetic items",
-        "GET /cosmetics/owned returns player's owned cosmetics",
-        "Cosmetic ownership stored in player_cosmetics table",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 16,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-017",
-      "title": "Create loadout management for equipped cosmetics",
-      "description": "As a player, I want to equip cosmetic items to my loadout.",
-      "acceptanceCriteria": [
-        "PUT /cosmetics/equip equips a cosmetic to a loadout slot",
-        "Loadout slots defined per cosmetic type (skin, emote, banner)",
-        "Equipped cosmetics visible to other players",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 17,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "Implement match history storage and retrieval API",
-      "description": "As a player, I want to view my match history and statistics.",
-      "acceptanceCriteria": [
-        "POST /matches stores match results from dedicated servers",
-        "GET /matches/history returns player's recent matches",
-        "Match stats aggregated in player_match_stats table",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 18,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-019",
-      "title": "Build server registration for dedicated servers",
-      "description": "As a server operator, I want to register my dedicated server.",
-      "acceptanceCriteria": [
-        "POST /servers/register registers a new server with metadata",
-        "Returns unique server ID and authentication token",
-        "Server details stored in servers table",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 19,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-020",
-      "title": "Implement heartbeat system for server health monitoring",
-      "description": "As a server operator, I want to send heartbeats to indicate server health.",
-      "acceptanceCriteria": [
-        "PUT /servers/:id/heartbeat updates server last_seen timestamp",
-        "Servers without recent heartbeats marked as inactive",
-        "Heartbeat includes current player count and map",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 20,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-021",
-      "title": "Create server browser API with filtering capabilities",
-      "description": "As a player, I want to browse active servers with filters.",
-      "acceptanceCriteria": [
-        "GET /servers returns list of active servers",
-        "Filter by region, map, player count, and version",
-        "Returns server details including current players",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 21,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-022",
-      "title": "Develop join token system for secure server access",
-      "description": "As a player, I want to generate a secure token to join a server.",
-      "acceptanceCriteria": [
-        "POST /servers/:id/join generates time-limited join token",
-        "Token validated by dedicated server via API call",
-        "Token includes player ID and server ID",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 22,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-023",
-      "title": "Build server favorites management",
-      "description": "As a player, I want to favorite servers for quick access.",
-      "acceptanceCriteria": [
-        "POST /favorites adds server to favorites",
-        "GET /favorites returns favorited servers",
-        "DELETE /favorites/:id removes server from favorites",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 23,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-024",
-      "title": "Implement loot table configuration system",
-      "description": "As an admin, I want to configure loot tables for cosmetic drops.",
-      "acceptanceCriteria": [
-        "Loot tables stored in loot_tables and loot_table_entries tables",
-        "Weighted probability distribution for drops",
-        "Admin endpoints for loot table management",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 24,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-025",
-      "title": "Build weighted random drop system for cosmetics",
-      "description": "As a player, I want a chance to receive cosmetic drops from special enemies.",
-      "acceptanceCriteria": [
-        "POST /loot/drop calculates random drop based on loot tables",
-        "Returns awarded cosmetic item to player",
-        "Drop probability respects weights and conditions",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 25,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-026",
-      "title": "Create reward calculation based on match performance",
-      "description": "As a player, I want to receive rewards based on match performance.",
-      "acceptanceCriteria": [
-        "Match completion triggers reward calculation",
-        "Rewards include Data currency and XP",
-        "Performance multipliers based on waves survived and kills",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 26,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-027",
-      "title": "Develop Data currency purchase validation",
-      "description": "As a player, I want to purchase cosmetics with Data currency.",
-      "acceptanceCriteria": [
-        "POST /cosmetics/purchase validates player has sufficient Data currency",
-        "Deducts currency and grants cosmetic ownership",
-        "Transaction logged for audit",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 27,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-028",
-      "title": "Implement friend system with request/accept workflow",
-      "description": "As a player, I want to add friends and see their online status.",
-      "acceptanceCriteria": [
-        "POST /friends/request sends friend request",
-        "PUT /friends/:id accepts or declines request",
-        "GET /friends returns friend list with status",
-        "Protected by JWT middleware",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 28,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-029",
-      "title": "Build leaderboard calculation service",
-      "description": "As a player, I want to see rankings based on performance.",
-      "acceptanceCriteria": [
-        "GET /leaderboards/daily returns daily rankings",
-        "GET /leaderboards/weekly returns weekly rankings",
-        "GET /leaderboards/alltime returns all-time rankings",
-        "Rankings calculated from player_match_stats",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 29,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-030",
-      "title": "Create API gateway with route aggregation and middleware",
-      "description": "As a developer, I want a unified API gateway with middleware.",
-      "acceptanceCriteria": [
-        "Route groups for auth, account, progression, servers, matches, loot, leaderboards, social",
-        "Global middleware for CORS, rate limiting, request logging",
-        "Consistent error response format",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 30,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

@@ -89,6 +89,7 @@ The repository uses Husky with lint-staged to run checks on staged files before 
 - **Error Handling**: Return errors as the last return value. Use `if err != nil` pattern.
 - **Imports**: Group standard library, third-party, and internal imports with blank lines.
 - **Testing**: Use `testing` package. Table-driven tests preferred for multiple test cases.
+- **Database Models**: Use sqlc for type-safe SQL queries. Timestamp columns are stored as TEXT with ISO 8601 format; map to `time.Time` using column-specific overrides in sqlc.yaml. Nullable timestamps require `pointer: true` in the override.
 
 ## Tooling Configuration
 
@@ -243,6 +244,14 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 - Avoid done callbacks in async tests - use async/await instead
 - Don't use `.only` or `.skip` in committed code
 - Keep test suites reasonably flat - avoid excessive `describe` nesting
+
+## Database (SQLite) Guidelines
+
+- SQLite does not support ENUM types; use CHECK constraints with IN list for enumerated values
+- Use TEXT datatype for timestamps with ISO 8601 format (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+- Foreign key indexes are not automatically created; create explicit indexes on foreign key columns
+- Migration files follow naming convention: YYYYMMDDHHMMSS_table_name.sql for goose migrations
+- Database schema is defined in docs/c4/containers/database-erd.puml as PlantUML
 
 ## When Biome Can't Help
 
