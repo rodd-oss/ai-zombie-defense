@@ -22,6 +22,9 @@
 ## Module Structure
 
 - The server module is a separate Go module (`ai-zombie-defense/server`)
+- Transitioning to a **Modular Monolith** structure (see C4 docs)
+- Service interfaces and logic are being moved to `internal/services/<module>/`
+- Handlers should depend on service interfaces
 - Dependencies: zap for logging, viper for configuration
 - Workspace includes both `ai-zombie-defense/db` and `ai-zombie-defense/server`
 - Use `go.work` to develop both modules together
@@ -33,6 +36,7 @@
 - Clear environment variables before each test to avoid pollution
 - Test both default values and environment overrides
 - Use `-race` flag when running tests to detect data races
+- Service tests should use in-memory SQLite and setup required tables manually in `setupTestDB`
 
 ## HTTP Server with Fiber
 
@@ -44,6 +48,7 @@
 - Create server instance via `server.New(cfg, logger)`
 - Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
 - Test servers using random free ports via `net.Listen` and `zaptest.Logger`
+
 ## Global Middleware
 
 - CORS middleware is enabled by default with configurable origins via `CORS_ALLOW_ORIGINS` environment variable (default: "*")
@@ -54,7 +59,7 @@
 
 ## Authentication
 
-- Use `pkg/auth.Service` for authentication logic
+- Use `internal/services/auth.Service` for authentication logic (legacy: `pkg/auth.Service` delegates to it)
 - JWT tokens use HS256 signing with configurable expiration
 - Access tokens are short-lived (default 15 minutes)
 - Refresh tokens are long-lived (default 7 days) and stored in `sessions` table
@@ -73,7 +78,7 @@
 - Extracts player ID from token subject claim and stores in `c.Locals("player_id")`
 - Helper functions `middleware.GetPlayerID(c)` and `middleware.GetClaims(c)` retrieve data
 - Returns 401 for missing/invalid tokens with JSON error response
- - Always use Bearer token format: `Authorization: Bearer <token>`
+- Always use Bearer token format: `Authorization: Bearer <token>`
 
 ## Server Authentication Middleware
 
@@ -88,11 +93,12 @@
 - Pattern for adding new endpoints:
   1. Add SQL queries in `db/queries/` (`.sql` files)
   2. Run `sqlc generate` in `packages/go/db/` to update Go models
-  3. Add service methods in `pkg/auth/auth.go`
-  4. Add handlers in `pkg/handlers/account.go` (or create new handler file)
+  3. Add service methods in `internal/services/<module>/`
+  4. Add handlers in `pkg/handlers/`
   5. Register routes in `pkg/server/server.go` with appropriate middleware
-  6. Write integration tests in `pkg/handlers/account_test.go` (or separate test file)
-  7. Ensure test database includes required tables (update `setupTestDB` in `auth_test.go`)
+  6. Write unit tests for services and integration tests for handlers
+  7. Ensure test database includes required tables (update `setupTestDB`)
   8. Run `go mod tidy` in affected modules
   9. Run `bun task check` to verify linting and type checks
   10. Run `go test ./...` to ensure all tests pass
+

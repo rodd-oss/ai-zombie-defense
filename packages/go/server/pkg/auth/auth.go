@@ -14,6 +14,7 @@ import (
 
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -22,12 +23,12 @@ import (
 )
 
 var (
-	ErrInvalidCredentials         = errors.New("invalid credentials")
-	ErrPlayerBanned               = errors.New("player is banned")
-	ErrDuplicateUsername          = errors.New("username already exists")
-	ErrDuplicateEmail             = errors.New("email already exists")
-	ErrInvalidRefreshToken        = errors.New("invalid refresh token")
-	ErrSessionNotFound            = errors.New("session not found")
+	ErrInvalidCredentials         = auth.ErrInvalidCredentials
+	ErrPlayerBanned               = auth.ErrPlayerBanned
+	ErrDuplicateUsername          = auth.ErrDuplicateUsername
+	ErrDuplicateEmail             = auth.ErrDuplicateEmail
+	ErrInvalidRefreshToken        = auth.ErrInvalidRefreshToken
+	ErrSessionNotFound            = auth.ErrSessionNotFound
 	ErrCosmeticNotFound           = errors.New("cosmetic not found")
 	ErrCosmeticNotOwned           = errors.New("cosmetic not owned")
 	ErrLoadoutNotFound            = errors.New("loadout not found")
@@ -53,6 +54,7 @@ type Service struct {
 	logger  *zap.Logger
 	dbConn  db.DBTX
 	queries *db.Queries
+	authSvc auth.Service
 }
 
 func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service {
@@ -61,6 +63,7 @@ func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service 
 		logger:  logger,
 		dbConn:  dbConn,
 		queries: db.New(),
+		authSvc: auth.NewAuthService(cfg, logger, dbConn),
 	}
 }
 
@@ -92,91 +95,22 @@ func (s *Service) isDuplicateError(err error, column string) bool {
 
 // Authenticate validates username/email and password.
 func (s *Service) Authenticate(ctx context.Context, usernameOrEmail, password string) (*db.Player, error) {
-	var player *db.Player
-	var err error
-
-	// Try username first
-	player, err = s.queries.GetPlayerByUsername(ctx, s.dbConn, usernameOrEmail)
-	if err != nil {
-		s.logger.Debug("GetPlayerByUsername failed", zap.String("usernameOrEmail", usernameOrEmail), zap.Error(err))
-		// Try email
-		player, err = s.queries.GetPlayerByEmail(ctx, s.dbConn, usernameOrEmail)
-		if err != nil {
-			s.logger.Debug("GetPlayerByEmail failed", zap.String("usernameOrEmail", usernameOrEmail), zap.Error(err))
-			return nil, ErrInvalidCredentials
-		}
-	}
-
-	// Check if player is banned
-	if player.IsBanned != 0 {
-		return nil, ErrPlayerBanned
-	}
-
-	// Verify password
-	if !s.VerifyPassword(player.PasswordHash, password) {
-		return nil, ErrInvalidCredentials
-	}
-
-	return player, nil
+	return s.authSvc.Authenticate(ctx, usernameOrEmail, password)
 }
 
 // RegisterPlayer creates a new player account.
 func (s *Service) RegisterPlayer(ctx context.Context, username, email, password string) (*db.Player, error) {
-	// Hash password
-	hash, err := s.HashPassword(password)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	// Create player
-	err = s.queries.CreatePlayer(ctx, s.dbConn, &db.CreatePlayerParams{
-		Username:     username,
-		Email:        email,
-		PasswordHash: hash,
-	})
-	if err != nil {
-		// Check for duplicate username/email
-		if s.isDuplicateError(err, "username") {
-			return nil, ErrDuplicateUsername
-		}
-		if s.isDuplicateError(err, "email") {
-			return nil, ErrDuplicateEmail
-		}
-		return nil, fmt.Errorf("failed to create player: %w", err)
-	}
-
-	// Retrieve created player
-	player, err := s.queries.GetPlayerByUsername(ctx, s.dbConn, username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve created player: %w", err)
-	}
-
-	// Create player progression row with default values
-	err = s.queries.CreatePlayerProgression(ctx, s.dbConn, player.PlayerID)
-	if err != nil {
-		// Log but continue - progression row may already exist or other issue
-		s.logger.Warn("Failed to create player progression row",
-			zap.Int64("player_id", player.PlayerID),
-			zap.Error(err))
-	}
-
-	return player, nil
+	return s.authSvc.RegisterPlayer(ctx, username, email, password)
 }
 
 // GenerateAccessToken creates a JWT token for a player.
 func (s *Service) GenerateAccessToken(playerID int64) (string, error) {
-	exp := time.Now().Add(s.config.JWT.AccessExpiration)
-	claims := jwt.RegisteredClaims{
-		Subject:   fmt.Sprintf("%d", playerID),
-		ExpiresAt: jwt.NewNumericDate(exp),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.config.JWT.Secret))
+	return s.authSvc.GenerateAccessToken(playerID)
 }
 
 // GenerateRefreshToken creates a refresh token for a player.
 func (s *Service) GenerateRefreshToken(playerID int64) (string, error) {
+	// Keep internal for now as it's not in the interface, but used by CreateSession
 	exp := time.Now().Add(s.config.JWT.RefreshExpiration)
 	// Generate random JWT ID to ensure uniqueness
 	randBytes := make([]byte, 16)
@@ -196,55 +130,30 @@ func (s *Service) GenerateRefreshToken(playerID int64) (string, error) {
 
 // ValidateToken parses and validates a JWT token.
 func (s *Service) ValidateToken(tokenString string) (*jwt.RegisteredClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
-		return []byte(s.config.JWT.Secret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
-		return claims, nil
-	}
-	return nil, errors.New("invalid token")
+	return s.authSvc.ValidateToken(tokenString)
 }
 
 // CreateSession creates a new refresh token session for a player.
 func (s *Service) CreateSession(ctx context.Context, playerID int64, ipAddress, userAgent string) (string, error) {
-	refreshToken, err := s.GenerateRefreshToken(playerID)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-	s.logger.Debug("CreateSession generating token", zap.String("token", refreshToken), zap.Int64("playerID", playerID))
-
-	expiresAt := time.Now().Add(s.config.JWT.RefreshExpiration)
-	params := &db.CreateSessionParams{
-		PlayerID:  playerID,
-		Token:     refreshToken,
-		ExpiresAt: types.Timestamp{Time: expiresAt},
-		IpAddress: &ipAddress,
-		UserAgent: &userAgent,
-	}
-	if ipAddress == "" {
-		params.IpAddress = nil
-	}
-	if userAgent == "" {
-		params.UserAgent = nil
-	}
-
-	err = s.queries.CreateSession(ctx, s.dbConn, params)
-	if err != nil {
-		s.logger.Error("CreateSession query failed", zap.Error(err))
-		return "", fmt.Errorf("failed to create session: %w", err)
-	}
-	s.logger.Debug("CreateSession inserted", zap.String("token", refreshToken))
-	return refreshToken, nil
+	return s.authSvc.CreateSession(ctx, playerID, ipAddress, userAgent)
 }
 
 // ValidateRefreshToken validates a refresh token and returns the player ID.
 func (s *Service) ValidateRefreshToken(ctx context.Context, token string) (int64, error) {
+	// Re-implementing here to avoid making it public in internal/services/auth if possible,
+	// or just use it if I want to expose it.
+	// Actually, the new service has it as a private method.
+	// For now, I'll keep the logic here or expose it.
+	// Let's check if I can just use it.
+
+	// Since I want to "move logic", I should probably just keep it here for now
+	// as it's used by RefreshSession which I will delegate.
+
+	// Wait, if I delegate RefreshSession, I don't need ValidateRefreshToken in pkg/auth unless someone else uses it.
+	return s.validateRefreshToken(ctx, token)
+}
+
+func (s *Service) validateRefreshToken(ctx context.Context, token string) (int64, error) {
 	// Validate JWT
 	claims, err := s.ValidateToken(token)
 	if err != nil {
@@ -274,33 +183,12 @@ func (s *Service) ValidateRefreshToken(ctx context.Context, token string) (int64
 
 // DeleteSession removes a session by token.
 func (s *Service) DeleteSession(ctx context.Context, token string) error {
-	s.logger.Debug("deleting session", zap.String("token", token))
-	err := s.queries.DeleteSession(ctx, s.dbConn, token)
-	if err != nil {
-		s.logger.Error("DeleteSession query failed", zap.Error(err), zap.String("token", token))
-	}
-	return err
+	return s.authSvc.DeleteSession(ctx, token)
 }
 
 // RefreshSession validates an existing refresh token and creates a new session.
 func (s *Service) RefreshSession(ctx context.Context, oldToken, ipAddress, userAgent string) (playerID int64, newToken string, err error) {
-	playerID, err = s.ValidateRefreshToken(ctx, oldToken)
-	if err != nil {
-		return 0, "", err
-	}
-
-	// Delete old session
-	err = s.DeleteSession(ctx, oldToken)
-	if err != nil {
-		return 0, "", fmt.Errorf("failed to delete old session: %w", err)
-	}
-
-	// Create new session
-	newToken, err = s.CreateSession(ctx, playerID, ipAddress, userAgent)
-	if err != nil {
-		return 0, "", fmt.Errorf("failed to create new session: %w", err)
-	}
-	return playerID, newToken, nil
+	return s.authSvc.RefreshSession(ctx, oldToken, ipAddress, userAgent)
 }
 
 // GetPlayer retrieves a player by ID.
