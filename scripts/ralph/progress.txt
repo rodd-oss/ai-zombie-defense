@@ -37,3 +37,19 @@ Started: Fri Jan 23 14:23:33 MSK 2026
   - The `migrate` subcommand provides a convenient way to manage database schema without a separate binary.
   - Ensure `JWT_SECRET` is set (even if dummy) when running the server binary for migrations, as config loading requires it.
 ---
+
+## Fri Jan 23 15:40:00 MSK 2026 - US-005
+- Updated all service imports in `apps/backend-api/internal/services` to use the new `internal/db` package.
+- Updated API gateway imports and Backend API guidelines (AGENTS.md).
+- Removed the deprecated `apps/backend-api/db/` directory and its contents.
+- Verified that the backend build and all service tests pass.
+- Files changed:
+  - apps/backend-api/internal/services/... (multiple files)
+  - apps/backend-api/internal/api/gateway/gateway.go
+  - apps/backend-api/AGENTS.md
+  - apps/backend-api/db/ (removed)
+- **Learnings for future iterations:**
+  - The database refactor is complete: all database logic, generated code, and migrations are now managed within `internal/db` and the root `migrations/` directory.
+  - The main server binary now handles migrations via the `migrate` subcommand.
+  - Using aliases in `internal/db/db.go` successfully decoupled services from the underlying `generated` package.
+---
