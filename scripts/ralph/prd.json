@@ -1,16 +1,16 @@
 {
   "project": "AI Zombie Defense",
-  "branchName": "ralph/go-backend-refactor-v2",
-  "description": "Go Backend Architectural Refactor (V2) - Consolidate Gateway, migrate handlers/middleware to internal, and refactor the DB package.",
+  "branchName": "ralph/backend-api-consolidation",
+  "description": "Refactor Go backend into a unified backend-api application in the apps/ directory, consolidating server and database modules.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Refactor Database Package Structure",
-      "description": "As a developer, I want the db package to have a professional structure with generated code in internal/db.",
+      "title": "Initialize Backend-API Application",
+      "description": "As a developer, I want a single entry point and module for the backend so that I can manage dependencies and builds more easily.",
       "acceptanceCriteria": [
-        "Move SQLC generated files to packages/go/db/internal/db/",
-        "Remove packages/go/db/generated_backup/",
-        "Update sqlc.yaml to reflect new output directory",
+        "Create apps/backend-api directory",
+        "Initialize go.mod with name 'ai-zombie-defense/backend-api'",
+        "Update go.work to include './apps/backend-api' and remove './packages/go/db' and './packages/go/server'",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -19,73 +19,59 @@
     },
     {
       "id": "US-002",
-      "title": "Consolidate APIGateway and Delete Server Package",
-      "description": "As a developer, I want a single entry point for routing and middleware management.",
+      "title": "Migrate Database Logic",
+      "description": "As a developer, I want the database schema, migrations, and generated code to live within the backend app since they are tightly coupled.",
       "acceptanceCriteria": [
-        "Merge pkg/server/server.go logic into internal/api/gateway/gateway.go",
-        "Delete packages/go/server/pkg/server/ directory",
-        "Update cmd/server/main.go to use internal APIGateway",
-        "Verify server starts and /health endpoint works",
+        "Move all files from packages/go/db to apps/backend-api/db/",
+        "Update sqlc.yaml to point to new relative paths for queries and schema",
+        "Refactor all imports within the db package to use 'ai-zombie-defense/backend-api/db'",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Migrate Middleware to Internal",
-      "description": "As a developer, I want middleware to be internal to the server package.",
+      "title": "Migrate Core Server Packages",
+      "description": "As a developer, I want core server infrastructure to be relocated to the unified backend-api app.",
       "acceptanceCriteria": [
-        "Move all files from pkg/middleware/ to internal/middleware/",
-        "Update all internal and handler references to new middleware location",
+        "Move cmd/, pkg/config, pkg/logging, internal/api, internal/middleware, and internal/testutils from packages/go/server to apps/backend-api/",
+        "Update all imports in these moved files to use 'ai-zombie-defense/backend-api/...' instead of 'ai-zombie-defense/server' or 'ai-zombie-defense/db'",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Migrate Handlers and Services to Internal",
-      "description": "As a developer, I want handlers and business logic to be hidden from the public API.",
+      "title": "Migrate Internal Service Packages",
+      "description": "As a developer, I want the business logic services to be relocated to the unified backend-api app.",
       "acceptanceCriteria": [
-        "Move contents of pkg/handlers/ to service-specific internal/services/<name>/handlers/ or internal/handlers/",
-        "Update gateway routing to use new handler locations",
-        "Typecheck passes"
+        "Move internal/services/ from packages/go/server to apps/backend-api/internal/services/",
+        "Update all imports in service files to use 'ai-zombie-defense/backend-api/...' instead of 'ai-zombie-defense/server' or 'ai-zombie-defense/db'",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Handlers moved to service-specific internal directories and gateway updated."
-    },
-    {
-      "id": "US-005",
-      "title": "Decentralize Error Definitions",
-      "description": "As a developer, I want errors to be defined within their respective service packages.",
-      "acceptanceCriteria": [
-        "Move domain-specific errors (e.g., ErrPlayerBanned) from pkg/auth/ to internal/services/auth/",
-        "Move account-related errors to internal/services/account/",
-        "Update all handler and service usages to new error locations",
-        "Typecheck passes"
-      ],
-      "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-006",
-      "title": "Remove Auth Facade and Final Cleanup",
-      "description": "As a developer, I want to remove the monolithic auth facade to complete the architectural cleanup.",
+      "id": "US-005",
+      "title": "Final Verification and Cleanup",
+      "description": "As a developer, I want to ensure the workspace is clean and the new app is fully functional.",
       "acceptanceCriteria": [
-        "Delete packages/go/server/pkg/auth/auth.go",
-        "Delete packages/go/server/pkg/auth/ directory if empty",
-        "Verify all Go tests pass",
-        "Run bun task check and ensure no errors",
+        "Verify 'go build ./...' succeeds in apps/backend-api",
+        "Verify 'go test ./...' succeeds in apps/backend-api",
+        "Verify 'bun task check' passes for the repository",
+        "Ensure packages/go/ server and db subdirectories are empty of logic but remain as directories",
         "Typecheck passes"
       ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Deleted packages/go/server/pkg/auth facade and migrated tests to internal services."
+      "priority": 5,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
