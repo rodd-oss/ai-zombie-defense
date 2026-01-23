@@ -1,56 +1,14 @@
 # Ralph Progress Log
-Started: Fri Jan 23 13:54:56 MSK 2026
-
-## Codebase Patterns
-- Unified Backend: Move all Go logic to `apps/backend-api` and update `go.work`.
-
+Started: Fri Jan 23 14:13:01 MSK 2026
 ---
 
-## 2026-01-23 14:00 - US-001
-- Created `apps/backend-api` directory.
-- Initialized `go.mod` with `ai-zombie-defense/backend-api`.
-- Updated `go.work` to use `./apps/backend-api` and removed old Go packages.
-- Files changed: `apps/backend-api/go.mod`, `go.work`.
+## Fri Jan 23 14:14:32 MSK 2026 - US-001
+- Moved database SQL files and migrations to flatten the app structure.
+- Files changed:
+  - Moved apps/backend-api/db/migrations/* to apps/backend-api/migrations/
+  - Moved apps/backend-api/db/queries/* to apps/backend-api/internal/db/sql/queries/
+  - Moved apps/backend-api/db/schema/* to apps/backend-api/internal/db/sql/schema/
 - **Learnings for future iterations:**
-  - `go.work` needs to be updated manually when moving packages out of their original directories if they were part of the workspace.
-  - Initializing an empty module will cause `go build ./...` to warn about no packages, which is expected.
----
-
-## 2026-01-23 14:15 - US-002
-- Migrated all database logic from `packages/go/db` to `apps/backend-api/db`.
-- Updated `sqlc.yaml` relative paths and import overrides to use `ai-zombie-defense/backend-api/db`.
-- Refactored all internal imports within the `db` package to use the new module path.
-- Verified with `go build ./...`, `go vet ./...`, and `go test ./...` in `apps/backend-api/db`.
-- Removed original files from `packages/go/db`.
-- **Learnings for future iterations:**
-  - Global search and replace for `ai-zombie-defense/db` to `ai-zombie-defense/backend-api/db` is necessary when moving the package.
-  - `sqlc.yaml` overrides often contain hardcoded import paths that must be updated.
-  - `go mod tidy` in the new app directory will correctly pick up dependencies from the moved files.
----
-
----
-
-## 2026-01-23 14:30 - US-003 & US-004
-- Migrated core server packages (cmd, pkg/config, pkg/logging, internal/api, internal/middleware, internal/testutils) to apps/backend-api.
-- Migrated internal services to apps/backend-api/internal/services.
-- Updated all imports to use 'ai-zombie-defense/backend-api' and 'ai-zombie-defense/backend-api/db'.
-- Updated apps/backend-api/AGENTS.md with new module paths and structure.
-- Verified with go build, go vet, and go test in apps/backend-api.
-- Files changed: apps/backend-api/cmd/*, apps/backend-api/pkg/*, apps/backend-api/internal/*, apps/backend-api/go.mod, apps/backend-api/go.sum, apps/backend-api/AGENTS.md.
-- **Learnings for future iterations:**
-  - When consolidating modules, it's often necessary to move dependent packages together if the workspace no longer includes the old module.
-  - Global search and replace with `sed` is effective but must be followed by `go mod tidy` to fix dependencies.
-  - Tests in Go can be run for the whole app with `go test ./...` from the root of the app.
----
-
-## 2026-01-23 15:00 - US-005
-- Verified `apps/backend-api` builds and tests pass.
-- Cleaned up `packages/go/db` and `packages/go/server` directories, removing old logic and binaries while keeping the directory structure with `.gitkeep`.
-- Verified `go.work` correctly points to the new unified backend application.
-- Verified repository-wide quality checks pass with `bun task check`.
-- Files changed: `packages/go/server/*`, `packages/go/db/.gitkeep`, `packages/go/server/.gitkeep`.
-- **Learnings for future iterations:**
-  - Removing a package from a workspace should be accompanied by cleanup of the old directory to avoid confusion.
-  - Using `.gitkeep` ensures that the directory structure is preserved in Git even if the directories are otherwise empty.
-  - Always run `go mod tidy` in the new module after all files have been migrated.
+  - When flattening the structure, ensure that any tools (like sqlc or goose) that depend on these paths are updated in subsequent steps.
+  - Using `mkdir -p` ensures that the destination path exists before moving, avoiding file-into-file move errors.
 ---
