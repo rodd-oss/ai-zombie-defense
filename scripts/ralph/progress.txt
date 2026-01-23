@@ -146,3 +146,17 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - The pkg/auth.Service acts as a useful "Mega-Service" that implements all internal service interfaces, facilitating a smooth transition.
   - When a handler needs settings from config (like JWT expiration), pass the config struct explicitly alongside service interfaces.
 ---
+
+## 2026-01-23 14:05:00 - US-008
+- Updated cmd/server/main.go to wire all services, handlers, and the API Gateway.
+- Implemented database initialization using db/pkg/database.OpenDB.
+- Injected service interfaces into handlers and registered all routes using APIGateway.MountGroup.
+- Verified server starts successfully and /health endpoint returns expected response.
+- Verified Go build and vet pass in the server module.
+- Files changed:
+  - packages/go/server/cmd/server/main.go
+- **Learnings for future iterations:**
+  - Initializing the database and services in main.go provides a clear overview of the application dependency graph.
+  - The APIGateway pattern simplifies route management by providing a clean way to mount service-specific route groups with shared middleware.
+  - Using the pkg/auth.Service as a facade continues to be effective for gradual migration, as it currently satisfies all internal service interfaces.
+---

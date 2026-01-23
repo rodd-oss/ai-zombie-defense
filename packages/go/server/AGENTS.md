@@ -151,7 +151,7 @@
   2. Run `sqlc generate` in `packages/go/db/` to update Go models
   3. Add service methods in `internal/services/<module>/`
   4. Add handlers in `pkg/handlers/`
-  5. Register routes in `internal/api/gateway/gateway.go` (or via its mounting methods)
+  5. Register routes in `cmd/server/main.go` using `gw.MountGroup`
   6. Write unit tests for services and integration tests for handlers
   7. Ensure test database includes required tables (update `setupTestDB`)
   8. Run `go mod tidy` in affected modules
