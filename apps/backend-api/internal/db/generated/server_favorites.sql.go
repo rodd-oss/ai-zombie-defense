@@ -3,7 +3,7 @@
 //   sqlc v1.30.0
 // source: server_favorites.sql
 
-package db
+package generated
 
 import (
 	"context"

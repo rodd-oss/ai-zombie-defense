@@ -3,7 +3,7 @@
 //   sqlc v1.30.0
 // source: friends.sql
 
-package db
+package generated
 
 import (
 	"context"

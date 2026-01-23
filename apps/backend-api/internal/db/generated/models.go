@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package db
+package generated
 
 import (
 	"ai-zombie-defense/backend-api/internal/db/types"

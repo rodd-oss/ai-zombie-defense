@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"ai-zombie-defense/backend-api/db"
-	"ai-zombie-defense/backend-api/db/types"
+	"ai-zombie-defense/backend-api/internal/db/types"
 	"ai-zombie-defense/backend-api/internal/middleware"
 	"ai-zombie-defense/backend-api/internal/services/match"
 	"ai-zombie-defense/backend-api/internal/services/server"

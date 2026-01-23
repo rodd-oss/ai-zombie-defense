@@ -2,7 +2,7 @@ package server
 
 import (
 	"ai-zombie-defense/backend-api/db"
-	"ai-zombie-defense/backend-api/db/types"
+	"ai-zombie-defense/backend-api/internal/db/types"
 	"ai-zombie-defense/backend-api/pkg/config"
 	"context"
 	cryptorand "crypto/rand"

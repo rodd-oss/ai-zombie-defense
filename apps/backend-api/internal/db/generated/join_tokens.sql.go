@@ -3,7 +3,7 @@
 //   sqlc v1.30.0
 // source: join_tokens.sql
 
-package db
+package generated
 
 import (
 	"context"
