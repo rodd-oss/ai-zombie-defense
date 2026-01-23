@@ -1,0 +1,91 @@
+{
+  "project": "AI Zombie Defense",
+  "branchName": "ralph/go-backend-refactor-v2",
+  "description": "Go Backend Architectural Refactor (V2) - Consolidate Gateway, migrate handlers/middleware to internal, and refactor the DB package.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Refactor Database Package Structure",
+      "description": "As a developer, I want the db package to have a professional structure with generated code in internal/db.",
+      "acceptanceCriteria": [
+        "Move SQLC generated files to packages/go/db/internal/db/",
+        "Remove packages/go/db/generated_backup/",
+        "Update sqlc.yaml to reflect new output directory",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Consolidate APIGateway and Delete Server Package",
+      "description": "As a developer, I want a single entry point for routing and middleware management.",
+      "acceptanceCriteria": [
+        "Merge pkg/server/server.go logic into internal/api/gateway/gateway.go",
+        "Delete packages/go/server/pkg/server/ directory",
+        "Update cmd/server/main.go to use internal APIGateway",
+        "Verify server starts and /health endpoint works",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Migrate Middleware to Internal",
+      "description": "As a developer, I want middleware to be internal to the server package.",
+      "acceptanceCriteria": [
+        "Move all files from pkg/middleware/ to internal/middleware/",
+        "Update all internal and handler references to new middleware location",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Migrate Handlers and Services to Internal",
+      "description": "As a developer, I want handlers and business logic to be hidden from the public API.",
+      "acceptanceCriteria": [
+        "Move contents of pkg/handlers/ to service-specific internal/services/<name>/handlers/ or internal/handlers/",
+        "Update gateway routing to use new handler locations",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Handlers moved to service-specific internal directories and gateway updated."
+    },
+    {
+      "id": "US-005",
+      "title": "Decentralize Error Definitions",
+      "description": "As a developer, I want errors to be defined within their respective service packages.",
+      "acceptanceCriteria": [
+        "Move domain-specific errors (e.g., ErrPlayerBanned) from pkg/auth/ to internal/services/auth/",
+        "Move account-related errors to internal/services/account/",
+        "Update all handler and service usages to new error locations",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Remove Auth Facade and Final Cleanup",
+      "description": "As a developer, I want to remove the monolithic auth facade to complete the architectural cleanup.",
+      "acceptanceCriteria": [
+        "Delete packages/go/server/pkg/auth/auth.go",
+        "Delete packages/go/server/pkg/auth/ directory if empty",
+        "Verify all Go tests pass",
+        "Run bun task check and ensure no errors",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Deleted packages/go/server/pkg/auth facade and migrated tests to internal services."
+    }
+  ]
+}

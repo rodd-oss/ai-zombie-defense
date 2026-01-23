@@ -1,0 +1,5 @@
+## Codebase Patterns
+- Unified Go module at `apps/backend-api` using module name `ai-zombie-defense/backend-api`.
+- Database logic located in `apps/backend-api/db`.
+- Internal server packages (gateway, middleware, services) located in `apps/backend-api/internal`.
+- Always verify with `go build ./...` and `go test ./...` from the `apps/backend-api` directory.

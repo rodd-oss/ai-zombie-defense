@@ -42,3 +42,15 @@ Started: Fri Jan 23 13:54:56 MSK 2026
   - Global search and replace with `sed` is effective but must be followed by `go mod tidy` to fix dependencies.
   - Tests in Go can be run for the whole app with `go test ./...` from the root of the app.
 ---
+
+## 2026-01-23 15:00 - US-005
+- Verified `apps/backend-api` builds and tests pass.
+- Cleaned up `packages/go/db` and `packages/go/server` directories, removing old logic and binaries while keeping the directory structure with `.gitkeep`.
+- Verified `go.work` correctly points to the new unified backend application.
+- Verified repository-wide quality checks pass with `bun task check`.
+- Files changed: `packages/go/server/*`, `packages/go/db/.gitkeep`, `packages/go/server/.gitkeep`.
+- **Learnings for future iterations:**
+  - Removing a package from a workspace should be accompanied by cleanup of the old directory to avoid confusion.
+  - Using `.gitkeep` ensures that the directory structure is preserved in Git even if the directories are otherwise empty.
+  - Always run `go mod tidy` in the new module after all files have been migrated.
+---
