@@ -126,13 +126,19 @@
 - Returns 401 for missing/invalid tokens, 403 for server ID mismatch
 - Used for heartbeat endpoint and future server-authenticated endpoints
 
+## API Gateway
+
+- Use `internal/api/gateway.APIGateway` for central routing and global middleware
+- Transitioning away from `pkg/server.Server` for route registration
+- Services should mount their route groups via `MountGroup(prefix, ...middleware)`
+
 ## Adding New Endpoints
 - Pattern for adding new endpoints:
   1. Add SQL queries in `db/queries/` (`.sql` files)
   2. Run `sqlc generate` in `packages/go/db/` to update Go models
   3. Add service methods in `internal/services/<module>/`
   4. Add handlers in `pkg/handlers/`
-  5. Register routes in `pkg/server/server.go` with appropriate middleware
+  5. Register routes in `internal/api/gateway/gateway.go` (or via its mounting methods)
   6. Write unit tests for services and integration tests for handlers
   7. Ensure test database includes required tables (update `setupTestDB`)
   8. Run `go mod tidy` in affected modules

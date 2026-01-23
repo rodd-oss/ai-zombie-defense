@@ -5,6 +5,7 @@ Started: Fri Jan 23 12:23:11 MSK 2026
 - Use 'ai-zombie-defense/server/internal/services' for service interfaces and implementations.
 - Each service module should have its own package under internal/services.
 - Handlers should depend on service interfaces rather than concrete implementations (ongoing).
+- Use `internal/api/gateway.APIGateway` for central routing and global middleware.
 
 ---
 
@@ -94,4 +95,19 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - When migrating logic that spans multiple domains (like Match rewards affecting Progression), services can depend on each other's interfaces to maintain transactional integrity within the same database.
   - Using unexported helper methods (like `addMatchRewardsWithTx`) in internal services allows for clean code reuse while keeping the public interface focused.
   - pkg/auth.Service continues to serve as an effective delegation layer, allowing for a smooth transition to a modular monolith without breaking existing handler consumers.
+---
+
+## 2026-01-23 13:55:00 - US-006
+- Implemented API Gateway for central routing and global middleware aggregation.
+- Created internal/api/gateway/gateway.go with APIGateway struct.
+- Configured Fiber router with global middleware (CORS, Logging, Recovery, Rate Limiting).
+- Added MountGroup method to facilitate modular route registration.
+- Updated AGENTS.md with API Gateway guidelines.
+- Files changed:
+  - packages/go/server/internal/api/gateway/gateway.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Moving global middleware and routing to a dedicated gateway service simplifies the main server setup and allows for better isolation of cross-cutting concerns.
+  - Using a mounting pattern for routes allows each service module to define its own routing logic while the gateway maintains control over the overall path structure and global policies.
+  - The gateway currently uses Fiber's Group method to provide a isolated router for each service.
 ---
