@@ -8,17 +8,8 @@ package "Account Service" {
         +GetProfile(playerID: int): PlayerProfile
         +UpdateProfile(playerID: int, data: UpdateProfileDTO): boolean
         +ValidateUser(username: string): boolean
-        +GetFriends(playerID: int): List<Friend>
-        +SendFriendRequest(playerID: int, targetUsername: string): boolean
-        +AcceptFriendRequest(playerID: int, requestID: int): boolean
-        +GetFriendRequests(playerID: int): List<FriendRequest>
-        +CreateParty(playerID: int): Party
-        +InviteToParty(partyID: int, friendID: int): boolean
-        +JoinParty(partyID: int, playerID: int, inviteCode: string): boolean
         +GetSettings(playerID: int): PlayerSettings
         +UpdateSettings(playerID: int, settings: PlayerSettings): boolean
-        +GetFavoriteServers(playerID: int): List<ServerFavorite>
-        +AddFavoriteServer(playerID: int, serverID: int, note: string): boolean
     }
 
     class PlayerProfile <<DTO>> {
@@ -33,26 +24,6 @@ package "Account Service" {
     class UpdateProfileDTO <<DTO>> {
         +Username: string
         +Email: string
-    }
-
-    class Friend <<DTO>> {
-        +FriendID: int
-        +Username: string
-        +Status: string
-    }
-
-    class FriendRequest <<DTO>> {
-        +RequestID: int
-        +SenderID: int
-        +SenderUsername: string
-        +CreatedAt: timestamp
-    }
-
-    class Party <<DTO>> {
-        +PartyID: int
-        +LeaderID: int
-        +InviteCode: string
-        +Members: List<int>
     }
 }
 
@@ -79,14 +50,6 @@ package "Data Models (ERD Entities)" {
         +user_agent: text
     }
 
-    class Friendship <<Entity>> {
-        +player_id: int <<PK>> <<FK>>
-        +friend_id: int <<PK>> <<FK>>
-        +status: enum
-        +created_at: timestamp
-        +updated_at: timestamp
-    }
-
     class PlayerSettings <<Entity>> {
         +player_id: int <<PK>> <<FK>>
         +key_bindings: text
@@ -97,25 +60,13 @@ package "Data Models (ERD Entities)" {
         +created_at: timestamp
         +updated_at: timestamp
     }
-
-    class ServerFavorite <<Entity>> {
-        +player_id: int <<PK>> <<FK>>
-        +server_id: int <<PK>> <<FK>>
-        +added_at: timestamp
-        +note: varchar
-    }
 }
 
 AccountService ..> PlayerProfile : returns
-AccountService ..> Friend : returns
-AccountService ..> Party : creates/returns
 AccountService ..> UpdateProfileDTO : uses
-AccountService ..> FriendRequest : returns
 
 AccountService --> Player : manages
 AccountService --> Session : manages
-AccountService --> Friendship : manages
 AccountService --> PlayerSettings : manages
-AccountService --> ServerFavorite : manages
 
 @enduml

@@ -1,0 +1,45 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title C4 Code-level Class Diagram for Social Service
+
+package "Social Service" {
+    class SocialService <<Component>> {
+        +SendFriendRequest(playerID: int, targetPlayerID: int): error
+        +AcceptFriendRequest(requesterID: int, friendID: int): error
+        +DeclineFriendRequest(requesterID: int, friendID: int): error
+        +ListFriends(playerID: int): List<Friend>
+        +ListPendingIncoming(playerID: int): List<FriendRequest>
+        +ListPendingOutgoing(playerID: int): List<FriendRequest>
+    }
+
+    class Friend <<DTO>> {
+        +FriendID: int
+        +Username: string
+        +Status: string
+    }
+
+    class FriendRequest <<DTO>> {
+        +RequesterID: int
+        +RecipientID: int
+        +Status: string
+        +CreatedAt: timestamp
+    }
+}
+
+package "Data Models (ERD Entities)" {
+    class Friendship <<Entity>> {
+        +player_id: int <<PK>> <<FK>>
+        +friend_id: int <<PK>> <<FK>>
+        +status: enum
+        +created_at: timestamp
+        +updated_at: timestamp
+    }
+}
+
+SocialService ..> Friend : returns
+SocialService ..> FriendRequest : returns
+
+SocialService --> Friendship : manages
+
+@enduml

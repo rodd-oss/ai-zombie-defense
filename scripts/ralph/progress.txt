@@ -160,3 +160,21 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - The APIGateway pattern simplifies route management by providing a clean way to mount service-specific route groups with shared middleware.
   - Using the pkg/auth.Service as a facade continues to be effective for gradual migration, as it currently satisfies all internal service interfaces.
 ---
+
+## 2026-01-23 15:55:00 - US-009
+- Performed final verification of the modular monolith refactor.
+- Verified that all Go tests pass in server and db modules.
+- Verified that 'bun task check' passes (lint, format, typecheck).
+- Verified that the server starts and the /health endpoint works.
+- Aligned C4 documentation with the actual implementation (split Social from Account, moved Favorites to Server).
+- Files changed:
+  - docs/c4/containers/backend-api.puml
+  - docs/c4/containers/backend-api-components/account-service.puml
+  - docs/c4/containers/backend-api-components/social-service.puml
+  - docs/c4/containers/backend-api-components/server-registry-service.puml
+  - scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - The refactor diverged from original C4 diagrams by splitting Social (friends/requests) and Leaderboard into separate services, and moving Favorites to ServerRegistry.
+  - Consistent error handling (like ErrDuplicateUsername) across services is key for a cohesive API experience.
+  - The APIGateway pattern effectively decouples route registration from the main server lifecycle.
+---

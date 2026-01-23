@@ -20,6 +20,9 @@ package "Server Registry Service" {
         + ProcessHeartbeat(serverId: Int, players: Int): Error
         + GenerateJoinToken(serverId: Int, playerId: Int): JoinToken
         + ReservePartySlots(serverId: Int, partyId: Int): List<JoinToken>
+        + AddFavorite(playerID: Int, serverID: Int, note: String): Error
+        + RemoveFavorite(playerID: Int, serverID: Int): Error
+        + ListPlayerFavorites(playerID: Int): List<ServerFavorite>
     }
 
     interface IServerRepository <<Repository>> {
@@ -27,6 +30,9 @@ package "Server Registry Service" {
         + FindByID(id: Int): Server
         + Upsert(server: Server): Error
         + UpdateHeartbeat(id: Int, time: Timestamp, playerCount: Int): Error
+        + AddFavorite(playerID: Int, serverID: Int, note: String): Error
+        + RemoveFavorite(playerID: Int, serverID: Int): Error
+        + FindFavoritesByPlayerID(playerID: Int): List<ServerFavorite>
     }
 
     class Server <<Entity>> {
@@ -59,6 +65,13 @@ package "Server Registry Service" {
         + ExpiresAt: Timestamp
         + ServerAddress: String
         + ServerPort: Int
+    }
+
+    class ServerFavorite <<Entity>> {
+        + player_id: Int <<PK>> <<FK>>
+        + server_id: Int <<PK>> <<FK>>
+        + added_at: Timestamp
+        + note: String
     }
 }
 
