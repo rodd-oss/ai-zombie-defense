@@ -1,132 +1,90 @@
 {
   "project": "AI Zombie Defense",
-  "branchName": "ralph/backend-refactor-modular-monolith",
-  "description": "Backend Refactor - Transition the Go backend to a Modular Monolith structure as defined in C4 documentation (Account, Auth, Progression, etc.) and implement an API Gateway for unified routing.",
+  "branchName": "ralph/go-backend-refactor-v2",
+  "description": "Go Backend Architectural Refactor (V2) - Consolidate Gateway, migrate handlers/middleware to internal, and refactor the DB package.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Define Service Interfaces and Directory Structure",
-      "description": "As a developer, I want a clear directory structure and interfaces for each service module so that business logic can be isolated.",
+      "title": "Refactor Database Package Structure",
+      "description": "As a developer, I want the db package to have a professional structure with generated code in internal/db.",
       "acceptanceCriteria": [
-        "Create internal/services directory with sub-packages: auth, account, progression, match, server, social, leaderboard, loot",
-        "Define Go interfaces for each service representing their public API",
+        "Move SQLC generated files to packages/go/db/internal/db/",
+        "Remove packages/go/db/generated_backup/",
+        "Update sqlc.yaml to reflect new output directory",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Migrate Auth Service Logic",
-      "description": "As a developer, I want to move Auth logic to its own service module to decouple it from the handler.",
+      "title": "Consolidate APIGateway and Delete Server Package",
+      "description": "As a developer, I want a single entry point for routing and middleware management.",
       "acceptanceCriteria": [
-        "Implement AuthService interface in internal/services/auth",
-        "Move logic from packages/go/server/pkg/auth to internal/services/auth",
-        "Verify existing auth tests pass with the new service structure",
+        "Merge pkg/server/server.go logic into internal/api/gateway/gateway.go",
+        "Delete packages/go/server/pkg/server/ directory",
+        "Update cmd/server/main.go to use internal APIGateway",
+        "Verify server starts and /health endpoint works",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Migrate Account Service Logic",
-      "description": "As a developer, I want to move Account logic to its own service module.",
+      "title": "Migrate Middleware to Internal",
+      "description": "As a developer, I want middleware to be internal to the server package.",
       "acceptanceCriteria": [
-        "Implement AccountService interface in internal/services/account",
-        "Migrate profile and settings logic from handlers to the new service",
-        "Ensure database queries are restricted to account domain",
+        "Move all files from pkg/middleware/ to internal/middleware/",
+        "Update all internal and handler references to new middleware location",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Migrate Progression and Loot Service Logic",
-      "description": "As a developer, I want to isolate progression and loot logic in their respective service modules.",
+      "title": "Migrate Handlers and Services to Internal",
+      "description": "As a developer, I want handlers and business logic to be hidden from the public API.",
       "acceptanceCriteria": [
-        "Implement ProgressionService and LootService interfaces in internal/services",
-        "Migrate XP, prestige, and drop logic from existing handlers/services",
-        "Typecheck passes",
-        "Tests pass"
+        "Move contents of pkg/handlers/ to service-specific internal/services/<name>/handlers/ or internal/handlers/",
+        "Update gateway routing to use new handler locations",
+        "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Migrate Server and Match Service Logic",
-      "description": "As a developer, I want to isolate server registry and match history logic.",
+      "title": "Decentralize Error Definitions",
+      "description": "As a developer, I want errors to be defined within their respective service packages.",
       "acceptanceCriteria": [
-        "Implement ServerService and MatchService interfaces in internal/services",
-        "Migrate heartbeat, join tokens, and match storage logic",
-        "Typecheck passes",
-        "Tests pass"
+        "Move domain-specific errors (e.g., ErrPlayerBanned) from pkg/auth/ to internal/services/auth/",
+        "Move account-related errors to internal/services/account/",
+        "Update all handler and service usages to new error locations",
+        "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
-
     {
       "id": "US-006",
-      "title": "Implement API Gateway and Routing Aggregation",
-      "description": "As a developer, I want a central API Gateway that aggregates routes from all service handlers.",
+      "title": "Remove Auth Facade and Final Cleanup",
+      "description": "As a developer, I want to remove the monolithic auth facade to complete the architectural cleanup.",
       "acceptanceCriteria": [
-        "Create internal/api/gateway with APIGateway struct",
-        "Setup Fiber router in the gateway that mounts service-specific route groups",
-        "Apply global middleware (logging, CORS) in the gateway",
+        "Delete packages/go/server/pkg/auth/auth.go",
+        "Delete packages/go/server/pkg/auth/ directory if empty",
+        "Verify all Go tests pass",
+        "Run bun task check and ensure no errors",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "Update Handlers to use Service Interfaces",
-      "description": "As a developer, I want handlers to depend on service interfaces via constructor injection.",
-      "acceptanceCriteria": [
-        "Refactor existing handlers in server/pkg/handlers to accept service interfaces",
-        "Remove direct database or heavy logic from handlers",
-        "Update tests to mock or inject service interfaces",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Wiring and Dependency Injection in main.go",
-      "description": "As a developer, I want to wire all services and handlers together in the main entry point.",
-      "acceptanceCriteria": [
-        "Update cmd/server/main.go to initialize all services with the shared DB pool",
-        "Inject services into handlers and handlers into the Gateway",
-        "Start the Fiber server via the Gateway",
-        "Verify server starts and /health endpoint works",
-        "Typecheck passes"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Final Verification and Feature Parity",
-      "description": "As a user, I want to ensure the refactored system retains all original functionality.",
-      "acceptanceCriteria": [
-        "All existing integration tests in the repository pass",
-        "Run bun task check and ensure no linting or type errors",
-        "Verify API alignment with C4 documentation"
-      ],
-      "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]
