@@ -3,7 +3,10 @@ package handlers
 import (
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/account"
+	"ai-zombie-defense/server/internal/services/match"
+	"ai-zombie-defense/server/internal/services/progression"
+	"ai-zombie-defense/server/internal/services/server"
 	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,14 +14,18 @@ import (
 )
 
 type AccountHandlers struct {
-	service *auth.Service
-	logger  *zap.Logger
+	accSvc         account.Service
+	progressionSvc progression.Service
+	matchSvc       match.Service
+	logger         *zap.Logger
 }
 
-func NewAccountHandlers(service *auth.Service, logger *zap.Logger) *AccountHandlers {
+func NewAccountHandlers(accSvc account.Service, progressionSvc progression.Service, matchSvc match.Service, logger *zap.Logger) *AccountHandlers {
 	return &AccountHandlers{
-		service: service,
-		logger:  logger,
+		accSvc:         accSvc,
+		progressionSvc: progressionSvc,
+		matchSvc:       matchSvc,
+		logger:         logger,
 	}
 }
 
@@ -116,7 +123,7 @@ func (h *AccountHandlers) GetProfile(c *fiber.Ctx) error {
 	}
 
 	ctx := c.Context()
-	player, err := h.service.GetPlayer(ctx, playerID)
+	player, err := h.accSvc.GetPlayer(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -167,14 +174,14 @@ func (h *AccountHandlers) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	ctx := c.Context()
-	err := h.service.UpdatePlayerProfile(ctx, playerID, req.Username, req.Email)
+	err := h.accSvc.UpdatePlayerProfile(ctx, playerID, req.Username, req.Email)
 	if err != nil {
-		if err == auth.ErrDuplicateUsername {
+		if err == account.ErrDuplicateUsername {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "username already exists",
 			})
 		}
-		if err == auth.ErrDuplicateEmail {
+		if err == account.ErrDuplicateEmail {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "email already exists",
 			})
@@ -200,7 +207,7 @@ func (h *AccountHandlers) GetSettings(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	settings, err := h.service.GetPlayerSettings(ctx, playerID)
+	settings, err := h.accSvc.GetPlayerSettings(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player settings", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -247,7 +254,7 @@ func (h *AccountHandlers) UpdateSettings(c *fiber.Ctx) error {
 		SubtitlesEnabled: req.SubtitlesEnabled,
 	}
 	ctx := c.Context()
-	err := h.service.UpsertPlayerSettings(ctx, params)
+	err := h.accSvc.UpsertPlayerSettings(ctx, params)
 	if err != nil {
 		h.logger.Error("failed to upsert player settings", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -269,7 +276,7 @@ func (h *AccountHandlers) GetProgression(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	progression, err := h.service.GetPlayerProgression(ctx, playerID)
+	progression, err := h.progressionSvc.GetPlayerProgression(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player progression", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -305,7 +312,7 @@ func (h *AccountHandlers) PrestigePlayer(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	err := h.service.PrestigePlayer(ctx, playerID)
+	err := h.progressionSvc.PrestigePlayer(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to prestige player", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -313,7 +320,7 @@ func (h *AccountHandlers) PrestigePlayer(c *fiber.Ctx) error {
 		})
 	}
 	// Get updated progression to include in response
-	progression, err := h.service.GetPlayerProgression(ctx, playerID)
+	progression, err := h.progressionSvc.GetPlayerProgression(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player progression after prestige", zap.Error(err), zap.Int64("player_id", playerID))
 		// Still return success because prestige succeeded
@@ -341,7 +348,7 @@ func (h *AccountHandlers) GetCurrencyBalance(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	progression, err := h.service.GetPlayerProgression(ctx, playerID)
+	progression, err := h.progressionSvc.GetPlayerProgression(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player progression", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -363,7 +370,7 @@ func (h *AccountHandlers) GetCosmeticCatalog(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	items, err := h.service.GetCosmeticCatalog(ctx)
+	items, err := h.progressionSvc.GetCosmeticCatalog(ctx)
 	if err != nil {
 		h.logger.Error("failed to get cosmetic catalog", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -383,7 +390,7 @@ func (h *AccountHandlers) GetPlayerCosmetics(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	items, err := h.service.GetPlayerCosmetics(ctx, playerID)
+	items, err := h.progressionSvc.GetPlayerCosmetics(ctx, playerID)
 	if err != nil {
 		h.logger.Error("failed to get player cosmetics", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -416,19 +423,19 @@ func (h *AccountHandlers) EquipCosmetic(c *fiber.Ctx) error {
 		})
 	}
 	ctx := c.Context()
-	err := h.service.EquipCosmetic(ctx, playerID, req.CosmeticID)
+	err := h.progressionSvc.EquipCosmetic(ctx, playerID, req.CosmeticID)
 	if err != nil {
-		if err == auth.ErrCosmeticNotFound {
+		if err == progression.ErrCosmeticNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "cosmetic not found",
 			})
 		}
-		if err == auth.ErrCosmeticNotOwned {
+		if err == progression.ErrCosmeticNotOwned {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "cosmetic not owned",
 			})
 		}
-		if err == auth.ErrLoadoutNotFound {
+		if err == progression.ErrLoadoutNotFound {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "loadout not found",
 			})
@@ -468,19 +475,19 @@ func (h *AccountHandlers) PurchaseCosmetic(c *fiber.Ctx) error {
 	}
 
 	ctx := c.Context()
-	err := h.service.PurchaseCosmetic(ctx, playerID, req.CosmeticID)
+	err := h.progressionSvc.PurchaseCosmetic(ctx, playerID, req.CosmeticID)
 	if err != nil {
-		if err == auth.ErrCosmeticNotFound {
+		if err == progression.ErrCosmeticNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "cosmetic not found",
 			})
 		}
-		if err == auth.ErrInsufficientCurrency {
+		if err == progression.ErrInsufficientCurrency {
 			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
 				"error": "insufficient data currency",
 			})
 		}
-		if err == auth.ErrCosmeticAlreadyOwned {
+		if err == progression.ErrCosmeticAlreadyOwned {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "cosmetic already owned",
 			})
@@ -588,9 +595,9 @@ func (h *AccountHandlers) StoreMatch(c *fiber.Ctx) error {
 	}
 
 	ctx := c.Context()
-	err := h.service.StoreMatchWithStats(ctx, req.ServerID, matchParams, playerStats)
+	err := h.matchSvc.StoreMatchWithStats(ctx, req.ServerID, matchParams, playerStats)
 	if err != nil {
-		if err == auth.ErrServerNotFound {
+		if err == server.ErrServerNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "server not found",
 			})
@@ -626,7 +633,7 @@ func (h *AccountHandlers) GetMatchHistory(c *fiber.Ctx) error {
 	}
 
 	ctx := c.Context()
-	matches, err := h.service.GetPlayerMatchHistory(ctx, playerID, int32(limit))
+	matches, err := h.matchSvc.GetPlayerMatchHistory(ctx, playerID, int32(limit))
 	if err != nil {
 		h.logger.Error("failed to get match history", zap.Error(err), zap.Int64("player_id", playerID))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

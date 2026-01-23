@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/server"
 	"ai-zombie-defense/server/pkg/middleware"
 	"errors"
 
@@ -10,11 +10,11 @@ import (
 )
 
 type FavoriteHandlers struct {
-	service *auth.Service
+	service server.Service
 	logger  *zap.Logger
 }
 
-func NewFavoriteHandlers(service *auth.Service, logger *zap.Logger) *FavoriteHandlers {
+func NewFavoriteHandlers(service server.Service, logger *zap.Logger) *FavoriteHandlers {
 	return &FavoriteHandlers{
 		service: service,
 		logger:  logger,
@@ -74,7 +74,7 @@ func (h *FavoriteHandlers) AddFavorite(c *fiber.Ctx) error {
 
 	err := h.service.AddFavorite(c.Context(), playerID, req.ServerID, req.Note)
 	if err != nil {
-		if errors.Is(err, auth.ErrFavoriteAlreadyExists) {
+		if errors.Is(err, server.ErrFavoriteAlreadyExists) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": err.Error(),
 			})

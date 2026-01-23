@@ -8,16 +8,17 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
+	"ai-zombie-defense/server/internal/services/leaderboard"
 	"ai-zombie-defense/server/internal/services/loot"
 	"ai-zombie-defense/server/internal/services/match"
 	"ai-zombie-defense/server/internal/services/progression"
 	"ai-zombie-defense/server/internal/services/server"
+	"ai-zombie-defense/server/internal/services/social"
 	"ai-zombie-defense/server/pkg/config"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -46,10 +47,10 @@ var (
 	ErrLootTableEntryNotFound     = loot.ErrLootTableEntryNotFound
 	ErrInsufficientCurrency       = progression.ErrInsufficientCurrency
 	ErrCosmeticAlreadyOwned       = progression.ErrCosmeticAlreadyOwned
-	ErrFriendRequestAlreadyExists = errors.New("friend request already exists")
-	ErrFriendRequestNotFound      = errors.New("friend request not found")
-	ErrFriendRequestNotPending    = errors.New("friend request not pending")
-	ErrCannotFriendSelf           = errors.New("cannot send friend request to yourself")
+	ErrFriendRequestAlreadyExists = social.ErrFriendRequestAlreadyExists
+	ErrFriendRequestNotFound      = social.ErrFriendRequestNotFound
+	ErrFriendRequestNotPending    = social.ErrFriendRequestNotPending
+	ErrCannotFriendSelf           = social.ErrCannotFriendSelf
 )
 
 type Service struct {
@@ -63,6 +64,8 @@ type Service struct {
 	lootSvc        loot.Service
 	matchSvc       match.Service
 	serverSvc      server.Service
+	socialSvc      social.Service
+	leaderboardSvc leaderboard.Service
 }
 
 func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service {
@@ -78,6 +81,8 @@ func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service 
 		lootSvc:        loot.NewLootService(cfg, logger, dbConn),
 		matchSvc:       match.NewMatchService(cfg, logger, dbConn, progressionSvc),
 		serverSvc:      server.NewServerService(cfg, logger, dbConn),
+		socialSvc:      social.NewSocialService(cfg, logger, dbConn),
+		leaderboardSvc: leaderboard.NewLeaderboardService(cfg, logger, dbConn),
 	}
 }
 
@@ -249,8 +254,8 @@ func (s *Service) AddMatchRewards(ctx context.Context, playerID int64, kills, de
 	return s.progressionSvc.AddMatchRewards(ctx, playerID, kills, deaths, wavesSurvived, scrapEarned, dataEarned)
 }
 
-// AddDataCurrencyWithTransaction adds data currency to a player and logs a transaction.
-func (s *Service) AddDataCurrencyWithTransaction(ctx context.Context, playerID int64, amount int64, transactionType string, referenceID *int64) error {
+// AddDataCurrency adds data currency to a player and logs a transaction.
+func (s *Service) AddDataCurrency(ctx context.Context, playerID int64, amount int64, transactionType string, referenceID *int64) error {
 	return s.progressionSvc.AddDataCurrency(ctx, playerID, amount, transactionType, referenceID)
 }
 
@@ -339,113 +344,32 @@ func (s *Service) ListPlayerFavorites(ctx context.Context, playerID int64) ([]*d
 
 // SendFriendRequest sends a friend request from playerID to friendID.
 func (s *Service) SendFriendRequest(ctx context.Context, playerID int64, friendID int64) error {
-	if playerID == friendID {
-		return ErrCannotFriendSelf
-	}
-	existing, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
-		PlayerID: playerID,
-		FriendID: friendID,
-	})
-	if err == nil && existing != nil {
-		return ErrFriendRequestAlreadyExists
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("failed to check existing friend request: %w", err)
-	}
-	params := &db.CreateFriendRequestParams{
-		PlayerID: playerID,
-		FriendID: friendID,
-	}
-	err = s.queries.CreateFriendRequest(ctx, s.dbConn, params)
-	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed: friends.player_id, friends.friend_id") {
-			return ErrFriendRequestAlreadyExists
-		}
-		return fmt.Errorf("failed to create friend request: %w", err)
-	}
-	s.logger.Debug("Friend request sent", zap.Int64("player_id", playerID), zap.Int64("friend_id", friendID))
-	return nil
+	return s.socialSvc.SendFriendRequest(ctx, playerID, friendID)
 }
 
 // AcceptFriendRequest accepts a pending friend request.
 func (s *Service) AcceptFriendRequest(ctx context.Context, requesterPlayerID int64, friendID int64) error {
-	request, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
-		PlayerID: requesterPlayerID,
-		FriendID: friendID,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrFriendRequestNotFound
-		}
-		return fmt.Errorf("failed to get friend request: %w", err)
-	}
-	if request.Status != "pending" {
-		return ErrFriendRequestNotPending
-	}
-	params := &db.AcceptFriendRequestParams{
-		PlayerID: requesterPlayerID,
-		FriendID: friendID,
-	}
-	err = s.queries.AcceptFriendRequest(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to accept friend request: %w", err)
-	}
-	s.logger.Debug("Friend request accepted", zap.Int64("player_id", requesterPlayerID), zap.Int64("friend_id", friendID))
-	return nil
+	return s.socialSvc.AcceptFriendRequest(ctx, requesterPlayerID, friendID)
 }
 
 // DeclineFriendRequest declines a pending friend request.
 func (s *Service) DeclineFriendRequest(ctx context.Context, requesterPlayerID int64, friendID int64) error {
-	request, err := s.queries.GetFriendRequest(ctx, s.dbConn, &db.GetFriendRequestParams{
-		PlayerID: requesterPlayerID,
-		FriendID: friendID,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrFriendRequestNotFound
-		}
-		return fmt.Errorf("failed to get friend request: %w", err)
-	}
-	if request.Status != "pending" {
-		return ErrFriendRequestNotPending
-	}
-	params := &db.DeclineFriendRequestParams{
-		PlayerID: requesterPlayerID,
-		FriendID: friendID,
-	}
-	err = s.queries.DeclineFriendRequest(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to decline friend request: %w", err)
-	}
-	s.logger.Debug("Friend request declined", zap.Int64("player_id", requesterPlayerID), zap.Int64("friend_id", friendID))
-	return nil
+	return s.socialSvc.DeclineFriendRequest(ctx, requesterPlayerID, friendID)
 }
 
 // ListFriends returns the player's accepted friends.
 func (s *Service) ListFriends(ctx context.Context, playerID int64) ([]*db.ListFriendsRow, error) {
-	friends, err := s.queries.ListFriends(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list friends: %w", err)
-	}
-	return friends, nil
+	return s.socialSvc.ListFriends(ctx, playerID)
 }
 
 // ListPendingIncoming returns pending incoming friend requests.
 func (s *Service) ListPendingIncoming(ctx context.Context, playerID int64) ([]*db.ListPendingIncomingRow, error) {
-	requests, err := s.queries.ListPendingIncoming(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list pending incoming requests: %w", err)
-	}
-	return requests, nil
+	return s.socialSvc.ListPendingIncoming(ctx, playerID)
 }
 
 // ListPendingOutgoing returns pending outgoing friend requests.
 func (s *Service) ListPendingOutgoing(ctx context.Context, playerID int64) ([]*db.ListPendingOutgoingRow, error) {
-	requests, err := s.queries.ListPendingOutgoing(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list pending outgoing requests: %w", err)
-	}
-	return requests, nil
+	return s.socialSvc.ListPendingOutgoing(ctx, playerID)
 }
 
 // CreateLootTable creates a new loot table.
@@ -533,27 +457,15 @@ func (s *Service) IsAdmin(ctx context.Context, playerID int64) (bool, error) {
 
 // GetDailyLeaderboard returns the daily leaderboard rankings.
 func (s *Service) GetDailyLeaderboard(ctx context.Context) ([]*db.GetDailyLeaderboardRow, error) {
-	entries, err := s.queries.GetDailyLeaderboard(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get daily leaderboard: %w", err)
-	}
-	return entries, nil
+	return s.leaderboardSvc.GetDailyLeaderboard(ctx)
 }
 
 // GetWeeklyLeaderboard returns the weekly leaderboard rankings.
 func (s *Service) GetWeeklyLeaderboard(ctx context.Context) ([]*db.GetWeeklyLeaderboardRow, error) {
-	entries, err := s.queries.GetWeeklyLeaderboard(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get weekly leaderboard: %w", err)
-	}
-	return entries, nil
+	return s.leaderboardSvc.GetWeeklyLeaderboard(ctx)
 }
 
 // GetAllTimeLeaderboard returns the all-time leaderboard rankings.
 func (s *Service) GetAllTimeLeaderboard(ctx context.Context) ([]*db.GetAllTimeLeaderboardRow, error) {
-	entries, err := s.queries.GetAllTimeLeaderboard(ctx, s.dbConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all-time leaderboard: %w", err)
-	}
-	return entries, nil
+	return s.leaderboardSvc.GetAllTimeLeaderboard(ctx)
 }

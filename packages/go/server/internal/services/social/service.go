@@ -3,6 +3,14 @@ package social
 import (
 	"ai-zombie-defense/db"
 	"context"
+	"errors"
+)
+
+var (
+	ErrFriendRequestAlreadyExists = errors.New("friend request already exists")
+	ErrFriendRequestNotFound      = errors.New("friend request not found")
+	ErrFriendRequestNotPending    = errors.New("friend request not pending")
+	ErrCannotFriendSelf           = errors.New("cannot send friend request to yourself")
 )
 
 type Service interface {

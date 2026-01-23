@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"ai-zombie-defense/db"
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/loot"
 	"errors"
 	"strconv"
 
@@ -11,11 +11,11 @@ import (
 )
 
 type LootTableHandlers struct {
-	service *auth.Service
+	service loot.Service
 	logger  *zap.Logger
 }
 
-func NewLootTableHandlers(service *auth.Service, logger *zap.Logger) *LootTableHandlers {
+func NewLootTableHandlers(service loot.Service, logger *zap.Logger) *LootTableHandlers {
 	return &LootTableHandlers{
 		service: service,
 		logger:  logger,
@@ -127,7 +127,7 @@ func (h *LootTableHandlers) GetLootTable(c *fiber.Ctx) error {
 	}
 	table, err := h.service.GetLootTable(ctx, lootTableID)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableNotFound) {
+		if errors.Is(err, loot.ErrLootTableNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table not found",
 			})
@@ -188,7 +188,7 @@ func (h *LootTableHandlers) UpdateLootTable(c *fiber.Ctx) error {
 	}
 	err = h.service.UpdateLootTable(ctx, lootTableID, req.Name, req.Description, req.DropChance, req.IsActive)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableNotFound) {
+		if errors.Is(err, loot.ErrLootTableNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table not found",
 			})
@@ -213,7 +213,7 @@ func (h *LootTableHandlers) DeleteLootTable(c *fiber.Ctx) error {
 	}
 	err = h.service.DeleteLootTable(ctx, lootTableID)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableNotFound) {
+		if errors.Is(err, loot.ErrLootTableNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table not found",
 			})
@@ -296,7 +296,7 @@ func (h *LootTableHandlers) GetLootTableEntry(c *fiber.Ctx) error {
 	}
 	entry, err := h.service.GetLootTableEntry(ctx, entryID)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableEntryNotFound) {
+		if errors.Is(err, loot.ErrLootTableEntryNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table entry not found",
 			})
@@ -332,7 +332,7 @@ func (h *LootTableHandlers) UpdateLootTableEntry(c *fiber.Ctx) error {
 	}
 	err = h.service.UpdateLootTableEntry(ctx, entryID, req.LootTableID, req.CosmeticID, req.Weight, req.MinQuantity, req.MaxQuantity)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableEntryNotFound) {
+		if errors.Is(err, loot.ErrLootTableEntryNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table entry not found",
 			})
@@ -357,7 +357,7 @@ func (h *LootTableHandlers) DeleteLootTableEntry(c *fiber.Ctx) error {
 	}
 	err = h.service.DeleteLootTableEntry(ctx, entryID)
 	if err != nil {
-		if errors.Is(err, auth.ErrLootTableEntryNotFound) {
+		if errors.Is(err, loot.ErrLootTableEntryNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "loot table entry not found",
 			})

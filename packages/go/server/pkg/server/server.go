@@ -88,7 +88,7 @@ func (s *Server) registerRoutes() {
 	// Auth routes
 	if s.db != nil {
 		authService := auth.NewService(s.cfg, s.logger, s.db)
-		authHandlers := handlers.NewAuthHandlers(authService, s.logger)
+		authHandlers := handlers.NewAuthHandlers(authService, s.cfg, s.logger)
 
 		authGroup := s.app.Group("/auth")
 		authGroup.Post("/login", authHandlers.Login)
@@ -97,7 +97,7 @@ func (s *Server) registerRoutes() {
 		authGroup.Post("/logout", authHandlers.Logout)
 
 		// Account routes (protected by JWT middleware)
-		accountHandlers := handlers.NewAccountHandlers(authService, s.logger)
+		accountHandlers := handlers.NewAccountHandlers(authService, authService, authService, s.logger)
 		accountGroup := s.app.Group("/account", middleware.AuthMiddleware(authService, s.logger))
 		accountGroup.Get("/profile", accountHandlers.GetProfile)
 		accountGroup.Put("/profile", accountHandlers.UpdateProfile)

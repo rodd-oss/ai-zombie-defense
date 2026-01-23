@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/social"
 	"ai-zombie-defense/server/pkg/middleware"
 	"errors"
 
@@ -10,11 +10,11 @@ import (
 )
 
 type FriendHandlers struct {
-	service *auth.Service
+	service social.Service
 	logger  *zap.Logger
 }
 
-func NewFriendHandlers(service *auth.Service, logger *zap.Logger) *FriendHandlers {
+func NewFriendHandlers(service social.Service, logger *zap.Logger) *FriendHandlers {
 	return &FriendHandlers{
 		service: service,
 		logger:  logger,
@@ -63,12 +63,12 @@ func (h *FriendHandlers) SendFriendRequest(c *fiber.Ctx) error {
 
 	err := h.service.SendFriendRequest(c.Context(), playerID, req.FriendID)
 	if err != nil {
-		if errors.Is(err, auth.ErrCannotFriendSelf) {
+		if errors.Is(err, social.ErrCannotFriendSelf) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
-		if errors.Is(err, auth.ErrFriendRequestAlreadyExists) {
+		if errors.Is(err, social.ErrFriendRequestAlreadyExists) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": err.Error(),
 			})
@@ -121,12 +121,12 @@ func (h *FriendHandlers) UpdateFriendRequest(c *fiber.Ctx) error {
 	}
 
 	if err != nil {
-		if errors.Is(err, auth.ErrFriendRequestNotFound) {
+		if errors.Is(err, social.ErrFriendRequestNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
-		if errors.Is(err, auth.ErrFriendRequestNotPending) {
+		if errors.Is(err, social.ErrFriendRequestNotPending) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": err.Error(),
 			})

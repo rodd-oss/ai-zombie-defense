@@ -1,18 +1,18 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/leaderboard"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
 type LeaderboardHandlers struct {
-	service *auth.Service
+	service leaderboard.Service
 	logger  *zap.Logger
 }
 
-func NewLeaderboardHandlers(service *auth.Service, logger *zap.Logger) *LeaderboardHandlers {
+func NewLeaderboardHandlers(service leaderboard.Service, logger *zap.Logger) *LeaderboardHandlers {
 	return &LeaderboardHandlers{
 		service: service,
 		logger:  logger,

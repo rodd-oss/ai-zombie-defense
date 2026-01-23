@@ -18,15 +18,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrPlayerBanned        = errors.New("player is banned")
-	ErrDuplicateUsername   = errors.New("username already exists")
-	ErrDuplicateEmail      = errors.New("email already exists")
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
-	ErrSessionNotFound     = errors.New("session not found")
-)
-
 type authService struct {
 	config  config.Config
 	logger  *zap.Logger

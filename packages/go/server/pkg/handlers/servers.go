@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/server"
 	"ai-zombie-defense/server/pkg/middleware"
 	"errors"
 	"strconv"
@@ -12,11 +12,11 @@ import (
 )
 
 type ServerHandlers struct {
-	service *auth.Service
+	service server.Service
 	logger  *zap.Logger
 }
 
-func NewServerHandlers(service *auth.Service, logger *zap.Logger) *ServerHandlers {
+func NewServerHandlers(service server.Service, logger *zap.Logger) *ServerHandlers {
 	return &ServerHandlers{
 		service: service,
 		logger:  logger,
@@ -247,7 +247,7 @@ func (h *ServerHandlers) ValidateJoinToken(c *fiber.Ctx) error {
 
 	playerID, serverID, err := h.service.ValidateJoinToken(c.Context(), token)
 	if err != nil {
-		if errors.Is(err, auth.ErrJoinTokenInvalid) || errors.Is(err, auth.ErrJoinTokenExpired) || errors.Is(err, auth.ErrJoinTokenAlreadyUsed) {
+		if errors.Is(err, server.ErrJoinTokenInvalid) || errors.Is(err, server.ErrJoinTokenExpired) || errors.Is(err, server.ErrJoinTokenAlreadyUsed) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": err.Error(),
 			})

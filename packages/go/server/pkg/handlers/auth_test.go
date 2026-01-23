@@ -332,7 +332,7 @@ func createTestServer(t *testing.T, db *sql.DB) *fiber.App {
 	logger := zaptest.NewLogger(t)
 	cfg := getTestConfig()
 	authService := auth.NewService(cfg, logger, db)
-	authHandlers := handlers.NewAuthHandlers(authService, logger)
+	authHandlers := handlers.NewAuthHandlers(authService, cfg, logger)
 	app := fiber.New()
 	authGroup := app.Group("/auth")
 	authGroup.Post("/login", authHandlers.Login)

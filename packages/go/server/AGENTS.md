@@ -108,6 +108,19 @@
 - `GenerateJoinToken` and `ValidateJoinToken` manage secure player entry into dedicated servers
 - `AddFavorite` and `ListPlayerFavorites` handle player-specific server bookmarks
 
+## Social Service
+
+- Use `internal/services/social.Service` for friends and social interactions
+- `SendFriendRequest` initiates a pending friendship between two players
+- `AcceptFriendRequest` and `DeclineFriendRequest` handle pending requests
+- `ListFriends`, `ListPendingIncoming`, and `ListPendingOutgoing` manage social visibility
+
+## Leaderboard Service
+
+- Use `internal/services/leaderboard.Service` for global and periodic rankings
+- `GetDailyLeaderboard`, `GetWeeklyLeaderboard`, and `GetAllTimeLeaderboard` return ranked entries
+- Rankings are calculated based on total score within the specified timeframe
+
 ## Middleware
 
 - JWT middleware is available in `pkg/middleware.AuthMiddleware`

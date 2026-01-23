@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/loot"
 	"ai-zombie-defense/server/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,11 +9,11 @@ import (
 )
 
 type LootHandlers struct {
-	service *auth.Service
+	service loot.Service
 	logger  *zap.Logger
 }
 
-func NewLootHandlers(service *auth.Service, logger *zap.Logger) *LootHandlers {
+func NewLootHandlers(service loot.Service, logger *zap.Logger) *LootHandlers {
 	return &LootHandlers{
 		service: service,
 		logger:  logger,

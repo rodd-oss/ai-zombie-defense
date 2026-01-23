@@ -111,3 +111,38 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - Using a mounting pattern for routes allows each service module to define its own routing logic while the gateway maintains control over the overall path structure and global policies.
   - The gateway currently uses Fiber's Group method to provide a isolated router for each service.
 ---
+
+## 2026-01-23 12:47:48 - US-007
+- Updated all handlers in packages/go/server/pkg/handlers to depend on service interfaces from internal/services.
+- Migrated remaining Social and Leaderboard logic to internal/services/social and internal/services/leaderboard.
+- Updated NewAuthHandlers to accept both auth.Service and config.Config for token expiration settings.
+- Updated AccountHandlers to depend on Account, Progression, and Match service interfaces.
+- Updated FriendHandlers to depend on social.Service interface.
+- Updated LeaderboardHandlers to depend on leaderboard.Service interface.
+- Updated LootHandlers and LootTableHandlers to depend on loot.Service interface.
+- Updated ServerHandlers and FavoriteHandlers to depend on server.Service interface.
+- Updated pkg/server/server.go and tests to use the new handler constructors.
+- Verified all Go tests pass and typecheck succeeds.
+- Files changed:
+  - packages/go/server/internal/services/social/service.go
+  - packages/go/server/internal/services/social/implementation.go
+  - packages/go/server/internal/services/leaderboard/service.go
+  - packages/go/server/internal/services/leaderboard/implementation.go
+  - packages/go/server/pkg/auth/auth.go
+  - packages/go/server/pkg/handlers/auth.go
+  - packages/go/server/pkg/handlers/account.go
+  - packages/go/server/pkg/handlers/friends.go
+  - packages/go/server/pkg/handlers/leaderboards.go
+  - packages/go/server/pkg/handlers/loot.go
+  - packages/go/server/pkg/handlers/loot_tables.go
+  - packages/go/server/pkg/handlers/servers.go
+  - packages/go/server/pkg/handlers/favorites.go
+  - packages/go/server/pkg/server/server.go
+  - packages/go/server/pkg/handlers/auth_test.go
+  - packages/go/server/pkg/handlers/account_test.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - Using interfaces for handlers allows for easier mocking in tests (though current tests still use the facade service).
+  - The pkg/auth.Service acts as a useful "Mega-Service" that implements all internal service interfaces, facilitating a smooth transition.
+  - When a handler needs settings from config (like JWT expiration), pass the config struct explicitly alongside service interfaces.
+---

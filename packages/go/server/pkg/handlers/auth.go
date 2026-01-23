@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/auth"
+	"ai-zombie-defense/server/pkg/config"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,13 +10,15 @@ import (
 )
 
 type AuthHandlers struct {
-	service *auth.Service
+	service auth.Service
+	config  config.Config
 	logger  *zap.Logger
 }
 
-func NewAuthHandlers(service *auth.Service, logger *zap.Logger) *AuthHandlers {
+func NewAuthHandlers(service auth.Service, cfg config.Config, logger *zap.Logger) *AuthHandlers {
 	return &AuthHandlers{
 		service: service,
+		config:  cfg,
 		logger:  logger,
 	}
 }
@@ -99,7 +102,7 @@ func (h *AuthHandlers) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	exp := time.Now().Add(h.service.Config().JWT.AccessExpiration)
+	exp := time.Now().Add(h.config.JWT.AccessExpiration)
 	resp := LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -161,7 +164,7 @@ func (h *AuthHandlers) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	exp := time.Now().Add(h.service.Config().JWT.AccessExpiration)
+	exp := time.Now().Add(h.config.JWT.AccessExpiration)
 	resp := RegisterResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -213,7 +216,7 @@ func (h *AuthHandlers) Refresh(c *fiber.Ctx) error {
 		})
 	}
 
-	exp := time.Now().Add(h.service.Config().JWT.AccessExpiration)
+	exp := time.Now().Add(h.config.JWT.AccessExpiration)
 	resp := LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
