@@ -36,7 +36,7 @@ var (
 	ErrCosmeticNotFound           = progression.ErrCosmeticNotFound
 	ErrCosmeticNotOwned           = progression.ErrCosmeticNotOwned
 	ErrLoadoutNotFound            = progression.ErrLoadoutNotFound
-	ErrMatchNotFound              = errors.New("match not found")
+	ErrMatchNotFound              = match.ErrMatchNotFound
 	ErrServerNotFound             = server.ErrServerNotFound
 	ErrJoinTokenInvalid           = server.ErrJoinTokenInvalid
 	ErrJoinTokenExpired           = server.ErrJoinTokenExpired

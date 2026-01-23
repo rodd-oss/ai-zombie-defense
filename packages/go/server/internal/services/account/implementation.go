@@ -3,7 +3,6 @@ package account
 import (
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
-	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 	"context"
 	"database/sql"
@@ -13,11 +12,6 @@ import (
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrDuplicateUsername = auth.ErrDuplicateUsername
-	ErrDuplicateEmail    = auth.ErrDuplicateEmail
 )
 
 type accountService struct {

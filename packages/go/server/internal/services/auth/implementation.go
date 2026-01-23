@@ -3,6 +3,7 @@ package auth
 import (
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/pkg/config"
 	"context"
 	cryptorand "crypto/rand"
@@ -79,10 +80,10 @@ func (s *authService) RegisterPlayer(ctx context.Context, username, email, passw
 	if err != nil {
 		// Check for duplicate username/email
 		if s.isDuplicateError(err, "username") {
-			return nil, ErrDuplicateUsername
+			return nil, account.ErrDuplicateUsername
 		}
 		if s.isDuplicateError(err, "email") {
-			return nil, ErrDuplicateEmail
+			return nil, account.ErrDuplicateEmail
 		}
 		return nil, fmt.Errorf("failed to create player: %w", err)
 	}

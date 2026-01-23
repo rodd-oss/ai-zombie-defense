@@ -3,6 +3,12 @@ package loot
 import (
 	"ai-zombie-defense/db"
 	"context"
+	"errors"
+)
+
+var (
+	ErrLootTableNotFound      = errors.New("loot table not found")
+	ErrLootTableEntryNotFound = errors.New("loot table entry not found")
 )
 
 type Service interface {

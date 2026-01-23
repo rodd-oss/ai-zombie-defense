@@ -59,6 +59,12 @@
 - 404 handler returns JSON `{"error": "route not found"}`
 - Middleware order: CORS → Logger → Recovery → Rate Limiter
 
+## Error Handling
+
+- Define domain-specific errors in the service's `service.go` file (e.g., `internal/services/auth/service.go`)
+- Export these errors so they can be used by handlers and other services
+- Avoid defining shared errors in central packages; keep them close to the logic that produces them
+
 ## Authentication
 
 - Use `internal/services/auth.Service` for authentication logic (legacy: `pkg/auth.Service` delegates to it)

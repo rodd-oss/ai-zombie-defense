@@ -3,6 +3,15 @@ package progression
 import (
 	"ai-zombie-defense/db"
 	"context"
+	"errors"
+)
+
+var (
+	ErrCosmeticNotFound     = errors.New("cosmetic not found")
+	ErrCosmeticNotOwned     = errors.New("cosmetic not owned")
+	ErrLoadoutNotFound      = errors.New("loadout not found")
+	ErrInsufficientCurrency = errors.New("insufficient data currency")
+	ErrCosmeticAlreadyOwned = errors.New("cosmetic already owned")
 )
 
 type Service interface {

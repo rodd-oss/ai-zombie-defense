@@ -13,11 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrLootTableNotFound      = errors.New("loot table not found")
-	ErrLootTableEntryNotFound = errors.New("loot table entry not found")
-)
-
 type lootService struct {
 	config  config.Config
 	logger  *zap.Logger

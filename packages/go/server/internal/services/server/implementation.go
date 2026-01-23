@@ -15,15 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrServerNotFound        = errors.New("server not found")
-	ErrJoinTokenInvalid      = errors.New("join token invalid")
-	ErrJoinTokenExpired      = errors.New("join token expired")
-	ErrJoinTokenAlreadyUsed  = errors.New("join token already used")
-	ErrFavoriteAlreadyExists = errors.New("server already favorited")
-	ErrFavoriteNotFound      = errors.New("favorite not found")
-)
-
 type serverService struct {
 	config  config.Config
 	logger  *zap.Logger

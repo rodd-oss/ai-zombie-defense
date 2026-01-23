@@ -3,6 +3,11 @@ package match
 import (
 	"ai-zombie-defense/db"
 	"context"
+	"errors"
+)
+
+var (
+	ErrMatchNotFound = errors.New("match not found")
 )
 
 type Service interface {

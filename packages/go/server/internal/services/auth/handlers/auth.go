@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 	"time"
@@ -130,12 +131,12 @@ func (h *AuthHandlers) Register(c *fiber.Ctx) error {
 	ctx := c.Context()
 	player, err := h.service.RegisterPlayer(ctx, req.Username, req.Email, req.Password)
 	if err != nil {
-		if err == auth.ErrDuplicateUsername {
+		if err == account.ErrDuplicateUsername {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "username already exists",
 			})
 		}
-		if err == auth.ErrDuplicateEmail {
+		if err == account.ErrDuplicateEmail {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "email already exists",
 			})

@@ -73,3 +73,32 @@
   - When moving handlers to `internal`, update middleware first to ensure type compatibility with internal service interfaces.
   - Fiber route registration in the gateway needs to be updated to use specific handler instances for each service group.
 ---
+
+## 2026-01-23 13:42 - US-005
+- Decentralized error definitions by moving them from monolithic locations and implementation files to service-specific `service.go` files.
+- Moved `ErrDuplicateUsername` and `ErrDuplicateEmail` to `internal/services/account/service.go`.
+- Moved `ErrMatchNotFound` to `internal/services/match/service.go`.
+- Moved progression, loot, and server errors to their respective `service.go` files.
+- Updated `auth` service and handlers to import and use `account` errors for registration.
+- Updated `pkg/auth/auth.go` facade to alias errors from their new decentralized locations.
+- Files changed:
+    - `packages/go/server/internal/services/auth/service.go`
+    - `packages/go/server/internal/services/auth/implementation.go`
+    - `packages/go/server/internal/services/auth/handlers/auth.go`
+    - `packages/go/server/internal/services/auth/service_test.go`
+    - `packages/go/server/internal/services/account/service.go`
+    - `packages/go/server/internal/services/account/implementation.go`
+    - `packages/go/server/internal/services/match/service.go`
+    - `packages/go/server/internal/services/progression/service.go`
+    - `packages/go/server/internal/services/progression/implementation.go`
+    - `packages/go/server/internal/services/loot/service.go`
+    - `packages/go/server/internal/services/loot/implementation.go`
+    - `packages/go/server/internal/services/server/service.go`
+    - `packages/go/server/internal/services/server/implementation.go`
+    - `packages/go/server/pkg/auth/auth.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Errors should be defined in the `service.go` (interface) file of a package to make them part of the public API and easily discoverable.
+  - When moving errors that are used across packages (like `account` errors used in `auth` registration), ensure you check for circular dependencies.
+  - Test files often need manual updates when package-level variables like errors are moved.
+---

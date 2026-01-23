@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 
@@ -198,16 +199,16 @@ func TestAuthService_RegisterPlayer(t *testing.T) {
 	t.Run("duplicate username", func(t *testing.T) {
 		_, _ = service.RegisterPlayer(ctx, "user1", "email1@example.com", "pass")
 		_, err := service.RegisterPlayer(ctx, "user1", "email2@example.com", "pass")
-		if err != auth.ErrDuplicateUsername {
-			t.Errorf("Expected ErrDuplicateUsername, got %v", err)
+		if err != account.ErrDuplicateUsername {
+			t.Errorf("Expected account.ErrDuplicateUsername, got %v", err)
 		}
 	})
 
 	t.Run("duplicate email", func(t *testing.T) {
 		_, _ = service.RegisterPlayer(ctx, "user2", "email2@example.com", "pass")
 		_, err := service.RegisterPlayer(ctx, "user3", "email2@example.com", "pass")
-		if err != auth.ErrDuplicateEmail {
-			t.Errorf("Expected ErrDuplicateEmail, got %v", err)
+		if err != account.ErrDuplicateEmail {
+			t.Errorf("Expected account.ErrDuplicateEmail, got %v", err)
 		}
 	})
 }

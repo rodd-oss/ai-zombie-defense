@@ -10,8 +10,6 @@ import (
 var (
 	ErrInvalidCredentials  = errors.New("invalid credentials")
 	ErrPlayerBanned        = errors.New("player is banned")
-	ErrDuplicateUsername   = errors.New("username already exists")
-	ErrDuplicateEmail      = errors.New("email already exists")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrSessionNotFound     = errors.New("session not found")
 )

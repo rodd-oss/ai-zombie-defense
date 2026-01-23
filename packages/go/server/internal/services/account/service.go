@@ -3,6 +3,12 @@ package account
 import (
 	"ai-zombie-defense/db"
 	"context"
+	"errors"
+)
+
+var (
+	ErrDuplicateUsername = errors.New("username already exists")
+	ErrDuplicateEmail    = errors.New("email already exists")
 )
 
 type Service interface {
