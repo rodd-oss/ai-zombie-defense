@@ -102,3 +102,15 @@
   - When moving errors that are used across packages (like `account` errors used in `auth` registration), ensure you check for circular dependencies.
   - Test files often need manual updates when package-level variables like errors are moved.
 ---
+
+## 2026-01-23 15:00 - US-006
+- Removed the monolithic auth facade in `packages/go/server/pkg/auth/auth.go`.
+- Deleted the empty `packages/go/server/pkg/auth/` directory.
+- Migrated tests for progression, loot, and match rewards from `pkg/auth/auth_service_test.go` to new service-specific `service_test.go` files.
+- Updated `internal/middleware/auth_test.go` to use `internal/services/auth.NewAuthService`.
+- Verified all Go tests pass and build succeeds.
+- **Learnings for future iterations:**
+  - When removing a facade, ensure all tests that relied on it are migrated to their respective internal services.
+  - `IncrementMatchStats` and other `UPDATE` queries in SQLite don't fail if the row doesn't exist; ensure the row exists before updating or use UPSERT logic.
+  - Transitioning to a modular monolith requires strict adherence to `internal` package boundaries to prevent accidental public API exposure.
+---

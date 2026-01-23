@@ -84,8 +84,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Deleted packages/go/server/pkg/auth facade and migrated tests to internal services."
     }
   ]
 }

@@ -1,12 +1,13 @@
 package middleware_test
 
 import (
+	"context"
 	"database/sql"
 	"net/http/httptest"
 	"testing"
 
 	"ai-zombie-defense/server/internal/middleware"
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 
 	"github.com/gofiber/fiber/v2"
@@ -87,24 +88,15 @@ func TestAuthMiddleware(t *testing.T) {
 			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
 		},
 	}
-	authService := auth.NewService(cfg, logger, db)
+	authService := auth.NewAuthService(cfg, logger, db)
 
 	// Insert a test player
-	password := "securepassword123"
-	hash, err := authService.HashPassword(password)
+	ctx := context.Background()
+	player, err := authService.RegisterPlayer(ctx, "testuser", "test@example.com", "securepassword123")
 	if err != nil {
-		t.Fatalf("Failed to hash password: %v", err)
+		t.Fatalf("Failed to register test player: %v", err)
 	}
-	_, err = db.Exec(`INSERT INTO players (username, email, password_hash) VALUES (?, ?, ?)`,
-		"testuser", "test@example.com", hash)
-	if err != nil {
-		t.Fatalf("Failed to insert test player: %v", err)
-	}
-	var playerID int64
-	err = db.QueryRow(`SELECT player_id FROM players WHERE username = ?`, "testuser").Scan(&playerID)
-	if err != nil {
-		t.Fatalf("Failed to get player ID: %v", err)
-	}
+	playerID := player.PlayerID
 
 	// Generate a valid access token
 	token, err := authService.GenerateAccessToken(playerID)
@@ -210,24 +202,15 @@ func TestAuthMiddleware_PlayerIDInLocals(t *testing.T) {
 			RefreshExpiration: 7 * 24 * 60 * 60 * 1_000_000_000,
 		},
 	}
-	authService := auth.NewService(cfg, logger, db)
+	authService := auth.NewAuthService(cfg, logger, db)
 
 	// Insert a test player
-	password := "securepassword123"
-	hash, err := authService.HashPassword(password)
+	ctx := context.Background()
+	player, err := authService.RegisterPlayer(ctx, "testuser2", "test2@example.com", "securepassword123")
 	if err != nil {
-		t.Fatalf("Failed to hash password: %v", err)
+		t.Fatalf("Failed to register test player: %v", err)
 	}
-	_, err = db.Exec(`INSERT INTO players (username, email, password_hash) VALUES (?, ?, ?)`,
-		"testuser2", "test2@example.com", hash)
-	if err != nil {
-		t.Fatalf("Failed to insert test player: %v", err)
-	}
-	var playerID int64
-	err = db.QueryRow(`SELECT player_id FROM players WHERE username = ?`, "testuser2").Scan(&playerID)
-	if err != nil {
-		t.Fatalf("Failed to get player ID: %v", err)
-	}
+	playerID := player.PlayerID
 
 	token, err := authService.GenerateAccessToken(playerID)
 	if err != nil {

@@ -67,7 +67,7 @@
 
 ## Authentication
 
-- Use `internal/services/auth.Service` for authentication logic (legacy: `pkg/auth.Service` delegates to it)
+- Use `internal/services/auth.Service` for authentication logic
 - JWT tokens use HS256 signing with configurable expiration
 - Access tokens are short-lived (default 15 minutes)
 - Refresh tokens are long-lived (default 7 days) and stored in `sessions` table
@@ -81,7 +81,7 @@
 
 ## Account Service
 
-- Use `internal/services/account.Service` for player profile and settings logic (legacy: `pkg/auth.Service` delegates to it)
+- Use `internal/services/account.Service` for player profile and settings logic
 - `GetPlayer` retrieves basic player information
 - `UpdatePlayerProfile` handles username and email changes; returns `ErrDuplicateUsername` or `ErrDuplicateEmail` on conflict
 - `UpdatePlayerPassword` handles secure password updates via bcrypt
