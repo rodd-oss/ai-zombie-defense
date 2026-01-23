@@ -71,6 +71,15 @@
 - Refresh endpoint rotates tokens (deletes old session, creates new one)
 - Logout endpoint deletes the session by token
 
+## Account Service
+
+- Use `internal/services/account.Service` for player profile and settings logic (legacy: `pkg/auth.Service` delegates to it)
+- `GetPlayer` retrieves basic player information
+- `UpdatePlayerProfile` handles username and email changes; returns `ErrDuplicateUsername` or `ErrDuplicateEmail` on conflict
+- `UpdatePlayerPassword` handles secure password updates via bcrypt
+- `GetPlayerSettings` returns player-specific settings (mouse sensitivity, keybindings, etc.) or defaults if none exist
+- `UpsertPlayerSettings` creates or updates settings in a single operation
+
 ## Middleware
 
 - JWT middleware is available in `pkg/middleware.AuthMiddleware`

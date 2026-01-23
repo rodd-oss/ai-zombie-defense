@@ -14,6 +14,7 @@ import (
 
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/pkg/config"
 
@@ -25,8 +26,8 @@ import (
 var (
 	ErrInvalidCredentials         = auth.ErrInvalidCredentials
 	ErrPlayerBanned               = auth.ErrPlayerBanned
-	ErrDuplicateUsername          = auth.ErrDuplicateUsername
-	ErrDuplicateEmail             = auth.ErrDuplicateEmail
+	ErrDuplicateUsername          = account.ErrDuplicateUsername
+	ErrDuplicateEmail             = account.ErrDuplicateEmail
 	ErrInvalidRefreshToken        = auth.ErrInvalidRefreshToken
 	ErrSessionNotFound            = auth.ErrSessionNotFound
 	ErrCosmeticNotFound           = errors.New("cosmetic not found")
@@ -55,6 +56,7 @@ type Service struct {
 	dbConn  db.DBTX
 	queries *db.Queries
 	authSvc auth.Service
+	accSvc  account.Service
 }
 
 func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service {
@@ -64,6 +66,7 @@ func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service 
 		dbConn:  dbConn,
 		queries: db.New(),
 		authSvc: auth.NewAuthService(cfg, logger, dbConn),
+		accSvc:  account.NewAccountService(cfg, logger, dbConn),
 	}
 }
 
@@ -80,17 +83,6 @@ func (s *Service) HashPassword(password string) (string, error) {
 func (s *Service) VerifyPassword(hash, password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
-}
-
-// isDuplicateError checks if the error is a SQLite UNIQUE constraint failure for a specific column.
-func (s *Service) isDuplicateError(err error, column string) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	// SQLite error format: "UNIQUE constraint failed: players.username"
-	// Also check for "constraint failed: UNIQUE constraint failed: players.username (2067)"
-	return strings.Contains(errStr, "UNIQUE constraint failed: players."+column)
 }
 
 // Authenticate validates username/email and password.
@@ -193,70 +185,22 @@ func (s *Service) RefreshSession(ctx context.Context, oldToken, ipAddress, userA
 
 // GetPlayer retrieves a player by ID.
 func (s *Service) GetPlayer(ctx context.Context, playerID int64) (*db.Player, error) {
-	player, err := s.queries.GetPlayer(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get player: %w", err)
-	}
-	return player, nil
+	return s.accSvc.GetPlayer(ctx, playerID)
 }
 
 // UpdatePlayerProfile updates a player's username and email.
 func (s *Service) UpdatePlayerProfile(ctx context.Context, playerID int64, username, email string) error {
-	params := &db.UpdatePlayerProfileParams{
-		PlayerID: playerID,
-		Username: username,
-		Email:    email,
-	}
-	err := s.queries.UpdatePlayerProfile(ctx, s.dbConn, params)
-	if err != nil {
-		if s.isDuplicateError(err, "username") {
-			return ErrDuplicateUsername
-		}
-		if s.isDuplicateError(err, "email") {
-			return ErrDuplicateEmail
-		}
-		return fmt.Errorf("failed to update player profile: %w", err)
-	}
-	return nil
+	return s.accSvc.UpdatePlayerProfile(ctx, playerID, username, email)
 }
 
 // UpdatePlayerPassword updates a player's password.
 func (s *Service) UpdatePlayerPassword(ctx context.Context, playerID int64, newPassword string) error {
-	hash, err := s.HashPassword(newPassword)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-	params := &db.UpdatePlayerPasswordParams{
-		PlayerID:     playerID,
-		PasswordHash: hash,
-	}
-	err = s.queries.UpdatePlayerPassword(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to update player password: %w", err)
-	}
-	return nil
+	return s.accSvc.UpdatePlayerPassword(ctx, playerID, newPassword)
 }
 
 // GetPlayerSettings retrieves player settings or returns defaults if not found.
 func (s *Service) GetPlayerSettings(ctx context.Context, playerID int64) (*db.PlayerSetting, error) {
-	settings, err := s.queries.GetPlayerSettings(ctx, s.dbConn, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Return default settings
-			return &db.PlayerSetting{
-				PlayerID:         playerID,
-				KeyBindings:      nil,
-				MouseSensitivity: nil,
-				UiScale:          nil,
-				ColorBlindMode:   0,
-				SubtitlesEnabled: 0,
-				CreatedAt:        types.Timestamp{},
-				UpdatedAt:        types.Timestamp{},
-			}, nil
-		}
-		return nil, fmt.Errorf("failed to get player settings: %w", err)
-	}
-	return settings, nil
+	return s.accSvc.GetPlayerSettings(ctx, playerID)
 }
 
 // GetPlayerProgression retrieves player progression or creates a default row if not found.
@@ -313,11 +257,7 @@ func (s *Service) GetPlayerCosmetics(ctx context.Context, playerID int64) ([]*db
 
 // UpsertPlayerSettings creates or updates player settings.
 func (s *Service) UpsertPlayerSettings(ctx context.Context, params *db.UpsertPlayerSettingsParams) error {
-	err := s.queries.UpsertPlayerSettings(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to upsert player settings: %w", err)
-	}
-	return nil
+	return s.accSvc.UpsertPlayerSettings(ctx, params)
 }
 
 // Config returns the service configuration.
