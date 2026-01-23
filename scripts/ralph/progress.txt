@@ -1,3 +1,19 @@
-# Ralph Progress Log
-Started: Fri Jan 23 13:12:37 MSK 2026
+## Codebase Patterns
+- Move generated SQLC code to `internal/db` and export via type aliases in the root `db` package to keep the module API clean while hiding implementation details.
+- Always run `go vet ./...` and `go build ./...` when changing package structures in Go.
+
+## 2026-01-23 13:30 - US-001
+- Refactored Database Package structure by moving SQLC generated files to `internal/db/`.
+- Updated `sqlc.yaml` to reflect the new output directory.
+- Created a facade in the root `db` package to export types and functions from `internal/db`.
+- Removed the obsolete `generated_backup` directory.
+- Files changed:
+    - `packages/go/db/sqlc.yaml`
+    - `packages/go/db/db.go`
+    - `packages/go/db/models.go`
+    - `packages/go/db/*.sql.go`
+    - `packages/go/db/AGENTS.md`
+- **Learnings for future iterations:**
+  - Use type aliases (`type T = internal.T`) in a parent package to selectively export types from an `internal` subpackage.
+  - Functions must be wrapped (`func F() { return internal.F() }`) as they cannot be aliased like types.
 ---

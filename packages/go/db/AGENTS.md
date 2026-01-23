@@ -32,3 +32,10 @@
 - Foreign keys and WAL mode are automatically enabled
 - For testing, use `database.OpenInMemory()` which uses the same settings
 - The connection pool is shared across the application via `*sql.DB` instance
+
+## Package Structure
+
+- **Generated Code**: Located in `internal/db/` to keep the root clean.
+- **Public API**: The root `db` package exports types and the `Queries` struct via type aliases and wraps `New()`.
+- **Custom Types**: Located in `types/` (e.g., `Timestamp`).
+- **SQLC Configuration**: `sqlc.yaml` is configured to output to `internal/db`.
