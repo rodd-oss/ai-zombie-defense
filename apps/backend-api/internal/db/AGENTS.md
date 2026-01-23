@@ -17,3 +17,7 @@
 ## Configuration
 - `sqlc.yaml` is located in the `apps/backend-api/` root.
 - Always run `sqlc generate` after modifying SQL files.
+
+## Convenience Aliases
+- **File**: `internal/db/db.go`
+- **Purpose**: Provides a unified entry point for database operations, including connection management, migration running, and aliases for all `generated` types. This allows other internal packages to import just `internal/db` instead of multiple sub-packages.

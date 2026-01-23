@@ -1,14 +1,25 @@
 # Ralph Progress Log
-Started: Fri Jan 23 14:13:01 MSK 2026
+Started: Fri Jan 23 14:23:33 MSK 2026
+
+## Codebase Patterns
+- Use `internal/db` as the primary entry point for database operations.
+- `internal/db/db.go` provides aliases for all generated `sqlc` types to simplify imports.
+- `internal/db/types` contains custom types (like `Timestamp`) used in database models.
+
 ---
 
-## Fri Jan 23 14:14:32 MSK 2026 - US-001
-- Moved database SQL files and migrations to flatten the app structure.
+## Fri Jan 23 14:50:23 MSK 2026 - US-003
+- Relocated database utilities logic and tests to internal/db.
+- Created internal/db/db.go with convenience aliases for generated types and Queries.
+- Updated cmd/server/main.go and db/cmd/migrate/main.go to use the new internal/db package.
+- Verified that all tests in internal/db pass.
 - Files changed:
-  - Moved apps/backend-api/db/migrations/* to apps/backend-api/migrations/
-  - Moved apps/backend-api/db/queries/* to apps/backend-api/internal/db/sql/queries/
-  - Moved apps/backend-api/db/schema/* to apps/backend-api/internal/db/sql/schema/
+  - apps/backend-api/internal/db/db.go (created)
+  - apps/backend-api/cmd/server/main.go
+  - apps/backend-api/db/cmd/migrate/main.go
+  - apps/backend-api/internal/db/AGENTS.md
 - **Learnings for future iterations:**
-  - When flattening the structure, ensure that any tools (like sqlc or goose) that depend on these paths are updated in subsequent steps.
-  - Using `mkdir -p` ensures that the destination path exists before moving, avoiding file-into-file move errors.
+  - The project is moving towards a flatter structure where database logic is consolidated in internal/db.
+  - Avoid using the old db/pkg package; it's scheduled for removal in US-005.
+  - The internal/db package now acts as a facade for the generated sqlc code.
 ---

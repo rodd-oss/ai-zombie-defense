@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"ai-zombie-defense/backend-api/db/pkg/database"
 	"ai-zombie-defense/backend-api/internal/api/gateway"
+	"ai-zombie-defense/backend-api/internal/db"
 	"ai-zombie-defense/backend-api/pkg/config"
 	"ai-zombie-defense/backend-api/pkg/logging"
 	"go.uber.org/zap"
@@ -32,7 +32,7 @@ func main() {
 	defer logger.Sync()
 
 	// Initialize database
-	dbConn, err := database.OpenDB(cfg.Database.Path)
+	dbConn, err := db.OpenDB(cfg.Database.Path)
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}

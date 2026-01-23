@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"ai-zombie-defense/backend-api/db/pkg/migrations"
+	"ai-zombie-defense/backend-api/internal/db"
 	_ "modernc.org/sqlite"
 )
 
@@ -30,38 +30,38 @@ func main() {
 	}
 
 	// Open database connection
-	db, err := sql.Open("sqlite", *dbPath)
+	sqlDB, err := sql.Open("sqlite", *dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
 	// Enable foreign keys
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		log.Fatalf("Failed to enable foreign keys: %v", err)
 	}
 
 	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+	if _, err := sqlDB.Exec("PRAGMA journal_mode = WAL"); err != nil {
 		log.Printf("Warning: failed to enable WAL mode: %v", err)
 	}
 
 	switch {
 	case *up:
 		fmt.Println("Running migrations...")
-		if err := migrations.RunMigrationsWithDir(db, *migrationsDir); err != nil {
+		if err := db.RunMigrationsWithDir(sqlDB, *migrationsDir); err != nil {
 			log.Fatalf("Migration failed: %v", err)
 		}
 		fmt.Println("Migrations completed successfully")
 	case *down:
 		fmt.Println("Rolling back latest migration...")
-		if err := migrations.RollbackWithDir(db, *migrationsDir); err != nil {
+		if err := db.RollbackWithDir(sqlDB, *migrationsDir); err != nil {
 			log.Fatalf("Rollback failed: %v", err)
 		}
 		fmt.Println("Rollback completed successfully")
 	case *status:
 		fmt.Println("Migration status:")
-		if err := migrations.StatusWithDir(db, *migrationsDir); err != nil {
+		if err := db.StatusWithDir(sqlDB, *migrationsDir); err != nil {
 			log.Fatalf("Status check failed: %v", err)
 		}
 	}
