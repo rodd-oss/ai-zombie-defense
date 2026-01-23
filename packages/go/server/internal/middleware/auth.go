@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/auth"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -27,7 +27,7 @@ var (
 )
 
 // AuthMiddleware creates a middleware that validates JWT tokens.
-func AuthMiddleware(authService *auth.Service, logger *zap.Logger) fiber.Handler {
+func AuthMiddleware(authService auth.Service, logger *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Extract token from Authorization header
 		authHeader := c.Get("Authorization")

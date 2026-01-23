@@ -3,9 +3,23 @@ package gateway
 import (
 	"ai-zombie-defense/db"
 	"ai-zombie-defense/server/internal/middleware"
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/account"
+	accHandlers "ai-zombie-defense/server/internal/services/account/handlers"
+	"ai-zombie-defense/server/internal/services/auth"
+	authHandlers "ai-zombie-defense/server/internal/services/auth/handlers"
+	"ai-zombie-defense/server/internal/services/leaderboard"
+	lbHandlers "ai-zombie-defense/server/internal/services/leaderboard/handlers"
+	"ai-zombie-defense/server/internal/services/loot"
+	lootHandlers "ai-zombie-defense/server/internal/services/loot/handlers"
+	"ai-zombie-defense/server/internal/services/match"
+	matchHandlers "ai-zombie-defense/server/internal/services/match/handlers"
+	"ai-zombie-defense/server/internal/services/progression"
+	progHandlers "ai-zombie-defense/server/internal/services/progression/handlers"
+	"ai-zombie-defense/server/internal/services/server"
+	srvHandlers "ai-zombie-defense/server/internal/services/server/handlers"
+	"ai-zombie-defense/server/internal/services/social"
+	socialHandlers "ai-zombie-defense/server/internal/services/social/handlers"
 	"ai-zombie-defense/server/pkg/config"
-	"ai-zombie-defense/server/pkg/handlers"
 	"context"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
@@ -54,100 +68,122 @@ func NewAPIGateway(cfg config.Config, logger *zap.Logger, db db.DBTX) *APIGatewa
 	gw.setupHealthCheck()
 
 	if db != nil {
-		authService := auth.NewService(cfg, logger, db)
-		gw.registerRoutes(authService)
+		authSvc := auth.NewAuthService(cfg, logger, db)
+		accSvc := account.NewAccountService(cfg, logger, db)
+		progSvc := progression.NewProgressionService(cfg, logger, db)
+		lootSvc := loot.NewLootService(cfg, logger, db)
+		matchSvc := match.NewMatchService(cfg, logger, db, progSvc)
+		serverSvc := server.NewServerService(cfg, logger, db)
+		socialSvc := social.NewSocialService(cfg, logger, db)
+		lbSvc := leaderboard.NewLeaderboardService(cfg, logger, db)
+
+		gw.registerRoutes(authSvc, accSvc, progSvc, matchSvc, serverSvc, socialSvc, lbSvc, lootSvc)
 	}
 
 	return gw
 }
 
-func (g *APIGateway) registerRoutes(authService *auth.Service) {
+func (g *APIGateway) registerRoutes(
+	authSvc auth.Service,
+	accSvc account.Service,
+	progSvc progression.Service,
+	matchSvc match.Service,
+	serverSvc server.Service,
+	socialSvc social.Service,
+	lbSvc leaderboard.Service,
+	lootSvc loot.Service,
+) {
 	// Auth routes
-	authHandlers := handlers.NewAuthHandlers(authService, g.cfg, g.logger)
+	authH := authHandlers.NewAuthHandlers(authSvc, g.cfg, g.logger)
 	authGroup := g.MountGroup("/auth")
-	authGroup.Post("/login", authHandlers.Login)
-	authGroup.Post("/register", authHandlers.Register)
-	authGroup.Post("/refresh", authHandlers.Refresh)
-	authGroup.Post("/logout", authHandlers.Logout)
+	authGroup.Post("/login", authH.Login)
+	authGroup.Post("/register", authH.Register)
+	authGroup.Post("/refresh", authH.Refresh)
+	authGroup.Post("/logout", authH.Logout)
 
 	// Protected routes
-	authMiddleware := middleware.AuthMiddleware(authService, g.logger)
+	authMiddleware := middleware.AuthMiddleware(authSvc, g.logger)
 
 	// Account routes
-	accountHandlers := handlers.NewAccountHandlers(authService, authService, authService, g.logger)
+	accountH := accHandlers.NewAccountHandlers(accSvc, g.logger)
 	accountGroup := g.MountGroup("/account", authMiddleware)
-	accountGroup.Get("/profile", accountHandlers.GetProfile)
-	accountGroup.Put("/profile", accountHandlers.UpdateProfile)
-	accountGroup.Get("/settings", accountHandlers.GetSettings)
-	accountGroup.Put("/settings", accountHandlers.UpdateSettings)
-	accountGroup.Get("/progression", accountHandlers.GetProgression)
+	accountGroup.Get("/profile", accountH.GetProfile)
+	accountGroup.Put("/profile", accountH.UpdateProfile)
+	accountGroup.Get("/settings", accountH.GetSettings)
+	accountGroup.Put("/settings", accountH.UpdateSettings)
 
 	// Progression routes
+	progressionH := progHandlers.NewProgressionHandlers(progSvc, g.logger)
 	progressionGroup := g.MountGroup("/progression", authMiddleware)
-	progressionGroup.Get("/", accountHandlers.GetProgression)
-	progressionGroup.Get("/currency", accountHandlers.GetCurrencyBalance)
-	progressionGroup.Post("/prestige", accountHandlers.PrestigePlayer)
+	progressionGroup.Get("/", progressionH.GetProgression)
+	progressionGroup.Get("/currency", progressionH.GetCurrencyBalance)
+	progressionGroup.Post("/prestige", progressionH.PrestigePlayer)
+	// Duplicate route for legacy support if needed, but prd says update gateway routing
+	accountGroup.Get("/progression", progressionH.GetProgression)
 
 	// Cosmetics routes
 	cosmeticsGroup := g.MountGroup("/cosmetics", authMiddleware)
-	cosmeticsGroup.Get("/catalog", accountHandlers.GetCosmeticCatalog)
-	cosmeticsGroup.Get("/owned", accountHandlers.GetPlayerCosmetics)
-	cosmeticsGroup.Put("/equip", accountHandlers.EquipCosmetic)
-	cosmeticsGroup.Post("/purchase", accountHandlers.PurchaseCosmetic)
+	cosmeticsGroup.Get("/catalog", progressionH.GetCosmeticCatalog)
+	cosmeticsGroup.Get("/owned", progressionH.GetPlayerCosmetics)
+	cosmeticsGroup.Put("/equip", progressionH.EquipCosmetic)
+	cosmeticsGroup.Post("/purchase", progressionH.PurchaseCosmetic)
 
 	// Matches routes
+	matchH := matchHandlers.NewMatchHandlers(matchSvc, g.logger)
 	matchesGroup := g.MountGroup("/matches", authMiddleware)
-	matchesGroup.Post("/", accountHandlers.StoreMatch)
-	matchesGroup.Get("/history", accountHandlers.GetMatchHistory)
+	matchesGroup.Post("/", matchH.StoreMatch)
+	matchesGroup.Get("/history", matchH.GetMatchHistory)
 
 	// Server routes
-	serverHandlers := handlers.NewServerHandlers(authService, g.logger)
+	serverH := srvHandlers.NewServerHandlers(serverSvc, g.logger)
 	serversGroup := g.MountGroup("/servers")
-	serversGroup.Post("/register", serverHandlers.RegisterServer)
-	serversGroup.Get("/", serverHandlers.ListServers)
-	serversGroup.Put("/:id/heartbeat", middleware.ServerAuthMiddleware(authService, g.logger), serverHandlers.UpdateHeartbeat)
-	serversGroup.Post("/:id/join", authMiddleware, serverHandlers.GenerateJoinToken)
-	serversGroup.Post("/join-token/:token/validate", middleware.ServerAuthMiddleware(authService, g.logger), serverHandlers.ValidateJoinToken)
+	serversGroup.Post("/register", serverH.RegisterServer)
+	serversGroup.Get("/", serverH.ListServers)
+	serversGroup.Put("/:id/heartbeat", middleware.ServerAuthMiddleware(serverSvc, g.logger), serverH.UpdateHeartbeat)
+	serversGroup.Post("/:id/join", authMiddleware, serverH.GenerateJoinToken)
+	serversGroup.Post("/join-token/:token/validate", middleware.ServerAuthMiddleware(serverSvc, g.logger), serverH.ValidateJoinToken)
 
 	// Favorites routes
-	favoriteHandlers := handlers.NewFavoriteHandlers(authService, g.logger)
+	favoriteH := socialHandlers.NewFavoriteHandlers(serverSvc, g.logger)
 	favoritesGroup := g.MountGroup("/favorites", authMiddleware)
-	favoritesGroup.Post("/", favoriteHandlers.AddFavorite)
-	favoritesGroup.Get("/", favoriteHandlers.ListFavorites)
-	favoritesGroup.Delete("/:id", favoriteHandlers.RemoveFavorite)
+	favoritesGroup.Post("/", favoriteH.AddFavorite)
+	favoritesGroup.Get("/", favoriteH.ListFavorites)
+	favoritesGroup.Delete("/:id", favoriteH.RemoveFavorite)
 
 	// Friends routes
-	friendHandlers := handlers.NewFriendHandlers(authService, g.logger)
+	socialH := socialHandlers.NewFriendHandlers(socialSvc, g.logger)
 	friendsGroup := g.MountGroup("/friends", authMiddleware)
-	friendsGroup.Post("/request", friendHandlers.SendFriendRequest)
-	friendsGroup.Put("/:id", friendHandlers.UpdateFriendRequest)
-	friendsGroup.Get("/", friendHandlers.ListFriends)
+
+	friendsGroup.Post("/request", socialH.SendFriendRequest)
+	friendsGroup.Put("/:id", socialH.UpdateFriendRequest)
+	friendsGroup.Get("/", socialH.ListFriends)
 
 	// Leaderboard routes
-	leaderboardHandlers := handlers.NewLeaderboardHandlers(authService, g.logger)
+	leaderboardH := lbHandlers.NewLeaderboardHandlers(lbSvc, g.logger)
 	leaderboardsGroup := g.MountGroup("/leaderboards")
-	leaderboardsGroup.Get("/daily", leaderboardHandlers.GetDailyLeaderboard)
-	leaderboardsGroup.Get("/weekly", leaderboardHandlers.GetWeeklyLeaderboard)
-	leaderboardsGroup.Get("/alltime", leaderboardHandlers.GetAllTimeLeaderboard)
+	leaderboardsGroup.Get("/daily", leaderboardH.GetDailyLeaderboard)
+	leaderboardsGroup.Get("/weekly", leaderboardH.GetWeeklyLeaderboard)
+	leaderboardsGroup.Get("/alltime", leaderboardH.GetAllTimeLeaderboard)
 
 	// Loot routes
-	lootHandlers := handlers.NewLootHandlers(authService, g.logger)
+	lootH := lootHandlers.NewLootHandlers(lootSvc, g.logger)
 	lootGroup := g.MountGroup("/loot", authMiddleware)
-	lootGroup.Post("/drop", lootHandlers.GenerateLootDrop)
+	lootGroup.Post("/drop", lootH.GenerateLootDrop)
 
 	// Admin routes
-	lootTableHandlers := handlers.NewLootTableHandlers(authService, g.logger)
-	adminGroup := g.MountGroup("/admin", authMiddleware, middleware.AdminMiddleware(authService, g.logger))
-	adminGroup.Get("/loot-tables", lootTableHandlers.ListLootTables)
-	adminGroup.Post("/loot-tables", lootTableHandlers.CreateLootTable)
-	adminGroup.Get("/loot-tables/:id", lootTableHandlers.GetLootTable)
-	adminGroup.Put("/loot-tables/:id", lootTableHandlers.UpdateLootTable)
-	adminGroup.Delete("/loot-tables/:id", lootTableHandlers.DeleteLootTable)
-	adminGroup.Get("/loot-tables/:id/entries", lootTableHandlers.ListLootTableEntries)
-	adminGroup.Post("/loot-tables/:id/entries", lootTableHandlers.CreateLootTableEntry)
-	adminGroup.Get("/loot-tables/entries/:entryId", lootTableHandlers.GetLootTableEntry)
-	adminGroup.Put("/loot-tables/entries/:entryId", lootTableHandlers.UpdateLootTableEntry)
-	adminGroup.Delete("/loot-tables/entries/:entryId", lootTableHandlers.DeleteLootTableEntry)
+	lootTableH := lootHandlers.NewLootTableHandlers(lootSvc, g.logger)
+	adminGroup := g.MountGroup("/admin", authMiddleware, middleware.AdminMiddleware(authSvc, g.logger))
+	adminGroup.Get("/loot-tables", lootTableH.ListLootTables)
+	adminGroup.Post("/loot-tables", lootTableH.CreateLootTable)
+	adminGroup.Get("/loot-tables/:id", lootTableH.GetLootTable)
+	adminGroup.Put("/loot-tables/:id", lootTableH.UpdateLootTable)
+	adminGroup.Delete("/loot-tables/:id", lootTableH.DeleteLootTable)
+	adminGroup.Get("/loot-tables/:id/entries", lootTableH.ListLootTableEntries)
+	adminGroup.Post("/loot-tables/:id/entries", lootTableH.CreateLootTableEntry)
+	adminGroup.Get("/loot-tables/entries/:entryId", lootTableH.GetLootTableEntry)
+	adminGroup.Put("/loot-tables/entries/:entryId", lootTableH.UpdateLootTableEntry)
+	adminGroup.Delete("/loot-tables/entries/:entryId", lootTableH.DeleteLootTableEntry)
+
 }
 
 // applyMiddleware sets up global middleware for the gateway.

@@ -3,7 +3,7 @@ package middleware
 import (
 	"errors"
 
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/auth"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -16,7 +16,7 @@ var (
 
 // AdminMiddleware creates a middleware that requires the player to be an administrator.
 // This middleware expects that AuthMiddleware has already run and stored player_id in locals.
-func AdminMiddleware(authService *auth.Service, logger *zap.Logger) fiber.Handler {
+func AdminMiddleware(authService auth.Service, logger *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Retrieve player ID from locals (set by AuthMiddleware)
 		playerID, ok := GetPlayerID(c)

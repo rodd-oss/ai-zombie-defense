@@ -24,4 +24,5 @@ type Service interface {
 	RefreshSession(ctx context.Context, oldToken, ipAddress, userAgent string) (int64, string, error)
 	DeleteSession(ctx context.Context, token string) error
 	ValidateToken(tokenString string) (*jwt.RegisteredClaims, error)
+	IsAdmin(ctx context.Context, playerID int64) (bool, error)
 }

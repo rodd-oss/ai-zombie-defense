@@ -55,8 +55,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Handlers moved to service-specific internal directories and gateway updated."
     },
     {
       "id": "US-005",

@@ -36,7 +36,8 @@
 - Clear environment variables before each test to avoid pollution
 - Test both default values and environment overrides
 - Use `-race` flag when running tests to detect data races
-- Service tests should use in-memory SQLite and setup required tables manually in `setupTestDB`
+- Service tests should use in-memory SQLite and shared helpers in `internal/testutils`
+- Shared test helpers are in `internal/testutils/testutils.go` (SetupTestDB, CreateTestPlayer, etc.)
 
 ## HTTP Server with Fiber
 
@@ -48,6 +49,7 @@
 - Create API Gateway instance via `gateway.NewAPIGateway(cfg, logger, db)`
 - Start server with `srv.Start()`; graceful shutdown with `srv.Shutdown(ctx)`
 - Test servers using `gateway.NewAPIGateway` and `srv.Router()`
+- Handlers are located in `internal/services/<module>/handlers/`
 
 ## Global Middleware
 
@@ -150,10 +152,10 @@
   1. Add SQL queries in `db/queries/` (`.sql` files)
   2. Run `sqlc generate` in `packages/go/db/` to update Go models
   3. Add service methods in `internal/services/<module>/`
-  4. Add handlers in `pkg/handlers/`
+  4. Add handlers in `internal/services/<module>/handlers/`
   5. Register routes in `internal/api/gateway/gateway.go` (temporarily, until fully decentralized)
   6. Write unit tests for services and integration tests for handlers
-  7. Ensure test database includes required tables (update `setupTestDB`)
+  7. Use shared test helpers in `internal/testutils`
   8. Run `go mod tidy` in affected modules
   9. Run `bun task check` to verify linting and type checks
   10. Run `go test ./...` to ensure all tests pass

@@ -255,3 +255,11 @@ func (s *authService) validateRefreshToken(ctx context.Context, token string) (i
 	}
 	return playerID, nil
 }
+
+func (s *authService) IsAdmin(ctx context.Context, playerID int64) (bool, error) {
+	player, err := s.queries.GetPlayer(ctx, s.dbConn, playerID)
+	if err != nil {
+		return false, fmt.Errorf("failed to check admin status: %w", err)
+	}
+	return player.IsAdmin == 1, nil
+}

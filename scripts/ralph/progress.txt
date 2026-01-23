@@ -3,6 +3,8 @@
 - Always run `go vet ./...` and `go build ./...` when changing package structures in Go.
 - Use `APIGateway` as the central entry point for routing and server lifecycle management (Start/Shutdown).
 - Middleware should be kept in `internal/middleware` to hide internal logic while providing necessary Fiber handlers for routing.
+- Service-specific handlers should be kept in `internal/services/<name>/handlers/`.
+- Use `internal/testutils` for shared Go test logic (DB setup, mock data) to ensure consistency and reduce duplication across service tests.
 
 ## 2026-01-23 13:30 - US-001
 - Refactored Database Package structure by moving SQLC generated files to `internal/db/`.
@@ -51,4 +53,23 @@
 - **Learnings for future iterations:**
   - Moving middleware to `internal` is a key step in encapsulation for the modular monolith.
   - All handlers that use `c.Locals` should have helper functions in the middleware package to ensure type-safe access to context values.
+---
+
+## 2026-01-23 13:36 - US-004
+- Migrated all handlers from `pkg/handlers/` to service-specific `internal/services/<name>/handlers/`.
+- Split the monolithic `account.go` handler into `account`, `progression`, and `match` handlers.
+- Updated `APIGateway` to instantiate and route to the new internal handlers.
+- Updated all middleware to use internal service interfaces instead of the legacy monolithic auth service.
+- Created `internal/testutils` for shared test helpers (DB setup, player creation, etc.) to reduce duplication across service tests.
+- Verified all Go tests pass and build succeeds.
+- Files changed:
+    - `packages/go/server/internal/api/gateway/gateway.go`
+    - `packages/go/server/internal/middleware/*.go`
+    - `packages/go/server/internal/services/*/handlers/*.go`
+    - `packages/go/server/internal/testutils/testutils.go`
+    - `packages/go/server/AGENTS.md`
+- **Learnings for future iterations:**
+  - Use `internal/testutils` for shared Go test logic to avoid circular dependencies between services and the gateway.
+  - When moving handlers to `internal`, update middleware first to ensure type compatibility with internal service interfaces.
+  - Fiber route registration in the gateway needs to be updated to use specific handler instances for each service group.
 ---

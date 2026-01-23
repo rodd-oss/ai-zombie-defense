@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	"ai-zombie-defense/server/pkg/auth"
+	"ai-zombie-defense/server/internal/services/server"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -25,7 +25,7 @@ var (
 )
 
 // ServerAuthMiddleware creates a middleware that validates server authentication token.
-func ServerAuthMiddleware(authService *auth.Service, logger *zap.Logger) fiber.Handler {
+func ServerAuthMiddleware(serverService server.Service, logger *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Extract server ID from path parameter
 		serverIDStr := c.Params("id")
@@ -54,7 +54,7 @@ func ServerAuthMiddleware(authService *auth.Service, logger *zap.Logger) fiber.H
 		}
 
 		// Look up server by auth token
-		server, err := authService.GetServerByAuthToken(c.Context(), token)
+		server, err := serverService.GetServerByAuthToken(c.Context(), token)
 		if err != nil {
 			logger.Debug("server lookup failed", zap.Error(err))
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
