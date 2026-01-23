@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"ai-zombie-defense/server/internal/api/gateway"
 	"ai-zombie-defense/server/pkg/auth"
-	"ai-zombie-defense/server/pkg/server"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap/zaptest"
@@ -30,8 +30,8 @@ func createTestAccessToken(t *testing.T, db *sql.DB, playerID int64) string {
 func createFullTestServer(t *testing.T, db *sql.DB) *fiber.App {
 	logger := zaptest.NewLogger(t)
 	cfg := getTestConfig()
-	srv := server.New(cfg, logger, db)
-	return srv.App()
+	gw := gateway.NewAPIGateway(cfg, logger, db)
+	return gw.Router()
 }
 
 func createTestServerRow(t *testing.T, db *sql.DB) int64 {

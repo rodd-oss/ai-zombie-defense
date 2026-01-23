@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"ai-zombie-defense/server/pkg/server"
+	"ai-zombie-defense/server/internal/api/gateway"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap/zaptest"
@@ -18,8 +18,8 @@ import (
 func createTestServerWithAllRoutes(t *testing.T, db *sql.DB) *fiber.App {
 	logger := zaptest.NewLogger(t)
 	cfg := getTestConfig()
-	srv := server.New(cfg, logger, db)
-	return srv.App()
+	gw := gateway.NewAPIGateway(cfg, logger, db)
+	return gw.Router()
 }
 
 func TestUpdateHeartbeat(t *testing.T) {
