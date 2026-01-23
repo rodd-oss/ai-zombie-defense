@@ -1,0 +1,11 @@
+package match
+
+import (
+	"ai-zombie-defense/db"
+	"context"
+)
+
+type Service interface {
+	StoreMatchWithStats(ctx context.Context, serverID int64, matchParams *db.CreateMatchParams, playerStats []*db.CreatePlayerMatchStatsParams) error
+	GetPlayerMatchHistory(ctx context.Context, playerID int64, limit int32) ([]*db.GetPlayerMatchHistoryRow, error)
+}
