@@ -12,11 +12,12 @@ import (
 	"time"
 
 	"ai-zombie-defense/db"
-	"ai-zombie-defense/db/types"
 	"ai-zombie-defense/server/internal/services/account"
 	"ai-zombie-defense/server/internal/services/auth"
 	"ai-zombie-defense/server/internal/services/loot"
+	"ai-zombie-defense/server/internal/services/match"
 	"ai-zombie-defense/server/internal/services/progression"
+	"ai-zombie-defense/server/internal/services/server"
 	"ai-zombie-defense/server/pkg/config"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -35,12 +36,12 @@ var (
 	ErrCosmeticNotOwned           = progression.ErrCosmeticNotOwned
 	ErrLoadoutNotFound            = progression.ErrLoadoutNotFound
 	ErrMatchNotFound              = errors.New("match not found")
-	ErrServerNotFound             = errors.New("server not found")
-	ErrJoinTokenInvalid           = errors.New("join token invalid")
-	ErrJoinTokenExpired           = errors.New("join token expired")
-	ErrJoinTokenAlreadyUsed       = errors.New("join token already used")
-	ErrFavoriteAlreadyExists      = errors.New("server already favorited")
-	ErrFavoriteNotFound           = errors.New("favorite not found")
+	ErrServerNotFound             = server.ErrServerNotFound
+	ErrJoinTokenInvalid           = server.ErrJoinTokenInvalid
+	ErrJoinTokenExpired           = server.ErrJoinTokenExpired
+	ErrJoinTokenAlreadyUsed       = server.ErrJoinTokenAlreadyUsed
+	ErrFavoriteAlreadyExists      = server.ErrFavoriteAlreadyExists
+	ErrFavoriteNotFound           = server.ErrFavoriteNotFound
 	ErrLootTableNotFound          = loot.ErrLootTableNotFound
 	ErrLootTableEntryNotFound     = loot.ErrLootTableEntryNotFound
 	ErrInsufficientCurrency       = progression.ErrInsufficientCurrency
@@ -60,9 +61,12 @@ type Service struct {
 	accSvc         account.Service
 	progressionSvc progression.Service
 	lootSvc        loot.Service
+	matchSvc       match.Service
+	serverSvc      server.Service
 }
 
 func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service {
+	progressionSvc := progression.NewProgressionService(cfg, logger, dbConn)
 	return &Service{
 		config:         cfg,
 		logger:         logger,
@@ -70,8 +74,10 @@ func NewService(cfg config.Config, logger *zap.Logger, dbConn db.DBTX) *Service 
 		queries:        db.New(),
 		authSvc:        auth.NewAuthService(cfg, logger, dbConn),
 		accSvc:         account.NewAccountService(cfg, logger, dbConn),
-		progressionSvc: progression.NewProgressionService(cfg, logger, dbConn),
+		progressionSvc: progressionSvc,
 		lootSvc:        loot.NewLootService(cfg, logger, dbConn),
+		matchSvc:       match.NewMatchService(cfg, logger, dbConn, progressionSvc),
+		serverSvc:      server.NewServerService(cfg, logger, dbConn),
 	}
 }
 
@@ -260,408 +266,75 @@ func (s *Service) EquipCosmetic(ctx context.Context, playerID int64, cosmeticID 
 }
 
 // StoreMatchWithStats creates a new match record and associated player statistics.
-// It uses a transaction to ensure atomicity.
 func (s *Service) StoreMatchWithStats(ctx context.Context, serverID int64, matchParams *db.CreateMatchParams, playerStats []*db.CreatePlayerMatchStatsParams) error {
-	// Ensure matchParams.ServerID matches the provided serverID
-	if matchParams.ServerID != serverID {
-		return fmt.Errorf("server ID mismatch: expected %d, got %d", serverID, matchParams.ServerID)
-	}
-
-	// Start transaction
-	var dbTx db.DBTX
-	var tx *sql.Tx
-	var err error
-	if db, ok := s.dbConn.(*sql.DB); ok {
-		tx, err = db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		dbTx = tx
-	} else {
-		s.logger.Warn("dbConn is not *sql.DB, proceeding without transaction")
-		dbTx = s.dbConn
-	}
-
-	// Create match
-	match, err := s.queries.CreateMatch(ctx, dbTx, matchParams)
-	if err != nil {
-		return fmt.Errorf("failed to create match: %w", err)
-	}
-
-	// Insert player stats
-	for _, stats := range playerStats {
-		// Ensure stats.MatchID matches the created match
-		stats.MatchID = match.MatchID
-		_, err := s.queries.CreatePlayerMatchStats(ctx, dbTx, stats)
-		if err != nil {
-			return fmt.Errorf("failed to create player match stats: %w", err)
-		}
-	}
-
-	// Award rewards based on player performance
-	for _, stats := range playerStats {
-		err := s.addMatchRewardsWithTx(ctx, dbTx, stats.PlayerID, stats.ZombiesKilled, stats.Deaths, stats.WavesSurvived, stats.ScrapEarned, stats.DataEarned)
-		if err != nil {
-			return fmt.Errorf("failed to award match rewards: %w", err)
-		}
-	}
-
-	// Commit transaction if we started one
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-
-	s.logger.Info("Match stored successfully",
-		zap.Int64("match_id", match.MatchID),
-		zap.Int64("server_id", serverID),
-		zap.Int("player_count", len(playerStats)))
-	return nil
-}
-
-// addMatchRewardsWithTx is a temporary helper for StoreMatchWithStats until it moves to MatchService.
-func (s *Service) addMatchRewardsWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, kills, deaths, wavesSurvived, scrapEarned, dataEarned int64) error {
-	if kills < 0 || deaths < 0 || wavesSurvived < 0 || scrapEarned < 0 || dataEarned < 0 {
-		return fmt.Errorf("match stats cannot be negative")
-	}
-	baseXP := int64(100)
-	xpPerKill := int64(10)
-	xpPerWave := int64(50)
-	xpPerScrap := int64(1)
-
-	totalXP := baseXP + (kills * xpPerKill) + (wavesSurvived * xpPerWave) + (scrapEarned * xpPerScrap)
-
-	err := s.queries.IncrementMatchStats(ctx, dbTx, &db.IncrementMatchStatsParams{
-		TotalMatchesPlayed: 1,
-		TotalWavesSurvived: wavesSurvived,
-		TotalKills:         kills,
-		TotalDeaths:        deaths,
-		TotalScrapEarned:   scrapEarned,
-		TotalDataEarned:    dataEarned,
-		PlayerID:           playerID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to increment match stats: %w", err)
-	}
-	err = s.addExperienceWithTx(ctx, dbTx, playerID, totalXP)
-	if err != nil {
-		return fmt.Errorf("failed to add experience: %w", err)
-	}
-	if dataEarned > 0 {
-		err = s.queries.AddDataCurrency(ctx, dbTx, &db.AddDataCurrencyParams{
-			DataCurrency: dataEarned,
-			PlayerID:     playerID,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to add data currency",
-				zap.Int64("player_id", playerID),
-				zap.Int64("data_earned", dataEarned),
-				zap.Error(err))
-		}
-	}
-	return nil
-}
-
-// addExperienceWithTx is a temporary helper for StoreMatchWithStats.
-func (s *Service) addExperienceWithTx(ctx context.Context, dbTx db.DBTX, playerID int64, xpGain int64) error {
-	if xpGain <= 0 {
-		return nil
-	}
-	progression, err := s.queries.GetPlayerProgression(ctx, dbTx, playerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			if err := s.queries.CreatePlayerProgression(ctx, dbTx, playerID); err != nil {
-				return fmt.Errorf("failed to create player progression: %w", err)
-			}
-			progression = &db.PlayerProgression{
-				PlayerID:           playerID,
-				Level:              1,
-				Experience:         0,
-				PrestigeLevel:      0,
-				DataCurrency:       0,
-				TotalMatchesPlayed: 0,
-				TotalWavesSurvived: 0,
-				TotalKills:         0,
-				TotalDeaths:        0,
-				TotalScrapEarned:   0,
-				TotalDataEarned:    0,
-				UpdatedAt:          types.Timestamp{},
-			}
-		} else {
-			return fmt.Errorf("failed to get player progression: %w", err)
-		}
-	}
-	oldLevel := progression.Level
-	err = s.queries.IncrementExperience(ctx, dbTx, &db.IncrementExperienceParams{
-		Experience: xpGain,
-		PlayerID:   playerID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to increment experience: %w", err)
-	}
-	newXP := progression.Experience + xpGain
-	newLevel := s.calculateLevelFromXP(newXP)
-	if newLevel > oldLevel {
-		err = s.queries.UpdateLevel(ctx, dbTx, &db.UpdateLevelParams{
-			Level:    newLevel,
-			PlayerID: playerID,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to update level after XP gain",
-				zap.Int64("player_id", playerID),
-				zap.Int64("new_level", newLevel),
-				zap.Error(err))
-		}
-	}
-	return nil
-}
-
-// calculateLevelFromXP is a temporary helper for StoreMatchWithStats.
-func (s *Service) calculateLevelFromXP(xp int64) int64 {
-	if xp <= 0 {
-		return 1
-	}
-	base := int64(s.config.Progression.BaseXPPerLevel)
-	if base <= 0 {
-		base = 1000
-	}
-	level := xp/base + 1
-	if level < 1 {
-		return 1
-	}
-	return level
+	return s.matchSvc.StoreMatchWithStats(ctx, serverID, matchParams, playerStats)
 }
 
 // GetPlayerMatchHistory retrieves a player's recent matches with their personal statistics.
 func (s *Service) GetPlayerMatchHistory(ctx context.Context, playerID int64, limit int32) ([]*db.GetPlayerMatchHistoryRow, error) {
-	matches, err := s.queries.GetPlayerMatchHistory(ctx, s.dbConn, &db.GetPlayerMatchHistoryParams{
-		PlayerID: playerID,
-		Limit:    int64(limit),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get player match history: %w", err)
-	}
-	return matches, nil
+	return s.matchSvc.GetPlayerMatchHistory(ctx, playerID, limit)
 }
 
 // RegisterServer registers a new dedicated server and returns authentication token.
 func (s *Service) RegisterServer(ctx context.Context, ipAddress string, port int64, name string, mapRotation *string, maxPlayers int64, region *string, version *string) (*db.Server, string, error) {
-	// Generate random authentication token (hex)
-	tokenBytes := make([]byte, 32)
-	if _, err := cryptorand.Read(tokenBytes); err != nil {
-		return nil, "", fmt.Errorf("failed to generate random token: %w", err)
-	}
-	authToken := hex.EncodeToString(tokenBytes)
-
-	params := &db.CreateServerParams{
-		IpAddress:   ipAddress,
-		Port:        port,
-		AuthToken:   &authToken,
-		Name:        name,
-		MapRotation: mapRotation,
-		MaxPlayers:  maxPlayers,
-		Region:      region,
-		Version:     version,
-	}
-
-	server, err := s.queries.CreateServer(ctx, s.dbConn, params)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create server: %w", err)
-	}
-
-	return server, authToken, nil
+	return s.serverSvc.RegisterServer(ctx, ipAddress, port, name, mapRotation, maxPlayers, region, version)
 }
 
 // GetServerByAuthToken retrieves a server by its authentication token.
 func (s *Service) GetServerByAuthToken(ctx context.Context, authToken string) (*db.Server, error) {
-	server, err := s.queries.GetServerByAuthToken(ctx, s.dbConn, &authToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get server by auth token: %w", err)
-	}
-	return server, nil
+	return s.serverSvc.GetServerByAuthToken(ctx, authToken)
 }
 
 // UpdateServerHeartbeat updates the last heartbeat timestamp, current player count, and map rotation for a server.
 func (s *Service) UpdateServerHeartbeat(ctx context.Context, serverID int64, currentPlayers int64, mapRotation *string) error {
-	// Use current time as heartbeat timestamp
-	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	params := &db.UpdateServerHeartbeatParams{
-		LastHeartbeat:  &now,
-		CurrentPlayers: currentPlayers,
-		MapRotation:    mapRotation,
-		ServerID:       serverID,
-	}
-	err := s.queries.UpdateServerHeartbeat(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to update server heartbeat: %w", err)
-	}
-	return nil
+	return s.serverSvc.UpdateServerHeartbeat(ctx, serverID, currentPlayers, mapRotation)
 }
 
 // ListActiveServers returns a filtered list of active servers.
 func (s *Service) ListActiveServers(ctx context.Context, region, mapRotation, version *string, minPlayers, maxPlayers *int64) ([]*db.Server, error) {
-	params := &db.ListActiveServersParams{
-		Region:      region,
-		MapRotation: mapRotation,
-		Version:     version,
-	}
-	if minPlayers != nil {
-		params.CurrentPlayers = *minPlayers
-	} else {
-		params.CurrentPlayers = -1
-	}
-	if maxPlayers != nil {
-		params.CurrentPlayers_2 = *maxPlayers
-	} else {
-		params.CurrentPlayers_2 = -1
-	}
-	servers, err := s.queries.ListActiveServers(ctx, s.dbConn, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list active servers: %w", err)
-	}
-	return servers, nil
+	return s.serverSvc.ListActiveServers(ctx, region, mapRotation, version, minPlayers, maxPlayers)
 }
 
 // GenerateJoinToken creates a new join token for a player to join a specific server.
 // The token expires after the specified duration.
 func (s *Service) GenerateJoinToken(ctx context.Context, playerID int64, serverID int64, expiresIn time.Duration) (string, error) {
-	// Generate random token (hex)
-	tokenBytes := make([]byte, 32)
-	if _, err := cryptorand.Read(tokenBytes); err != nil {
-		return "", fmt.Errorf("failed to generate random token: %w", err)
-	}
-	token := hex.EncodeToString(tokenBytes)
-
-	expiresAt := time.Now().UTC().Add(expiresIn)
-	params := &db.CreateJoinTokenParams{
-		Token:     token,
-		PlayerID:  playerID,
-		ServerID:  serverID,
-		ExpiresAt: types.Timestamp{Time: expiresAt},
-	}
-
-	_, err := s.queries.CreateJoinToken(ctx, s.dbConn, params)
-	if err != nil {
-		return "", fmt.Errorf("failed to create join token: %w", err)
-	}
-
-	s.logger.Debug("Join token generated",
-		zap.Int64("player_id", playerID),
-		zap.Int64("server_id", serverID),
-		zap.Time("expires_at", expiresAt))
-	return token, nil
+	return s.serverSvc.GenerateJoinToken(ctx, playerID, serverID, expiresIn)
 }
 
 // ValidateJoinToken validates a join token and returns the associated player and server IDs.
-// Returns ErrJoinTokenInvalid if token not found, ErrJoinTokenExpired if expired,
-// ErrJoinTokenAlreadyUsed if already used.
 func (s *Service) ValidateJoinToken(ctx context.Context, token string) (playerID int64, serverID int64, err error) {
-	joinToken, err := s.queries.GetValidJoinToken(ctx, s.dbConn, token)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Could be invalid, expired, or already used
-			// Try to get token to determine exact reason
-			tokenRow, err2 := s.queries.GetJoinToken(ctx, s.dbConn, token)
-			if err2 != nil {
-				if errors.Is(err2, sql.ErrNoRows) {
-					return 0, 0, ErrJoinTokenInvalid
-				}
-				return 0, 0, fmt.Errorf("failed to get join token: %w", err2)
-			}
-			// Token exists but not valid
-			expiresAt := tokenRow.ExpiresAt.Time
-			if expiresAt.Before(time.Now().UTC()) {
-				return 0, 0, ErrJoinTokenExpired
-			}
-			if tokenRow.UsedAt.Valid {
-				return 0, 0, ErrJoinTokenAlreadyUsed
-			}
-			// Should not happen (token not expired, not used, but still invalid?)
-			return 0, 0, ErrJoinTokenInvalid
-		}
-		return 0, 0, fmt.Errorf("failed to validate join token: %w", err)
-	}
-
-	// Token is valid
-	return joinToken.PlayerID, joinToken.ServerID, nil
+	return s.serverSvc.ValidateJoinToken(ctx, token)
 }
 
 // MarkTokenUsed marks a join token as used (consumed).
 func (s *Service) MarkTokenUsed(ctx context.Context, token string) error {
-	err := s.queries.MarkTokenUsed(ctx, s.dbConn, token)
-	if err != nil {
-		return fmt.Errorf("failed to mark token as used: %w", err)
-	}
-	s.logger.Debug("Join token marked as used", zap.String("token", token))
-	return nil
+	return s.serverSvc.MarkTokenUsed(ctx, token)
 }
 
 // AddFavorite adds a server to the player's favorites.
 func (s *Service) AddFavorite(ctx context.Context, playerID int64, serverID int64, note *string) error {
-	// Check if favorite already exists
-	existing, err := s.queries.GetFavorite(ctx, s.dbConn, &db.GetFavoriteParams{
-		PlayerID: playerID,
-		ServerID: serverID,
-	})
-	if err == nil && existing != nil {
-		return ErrFavoriteAlreadyExists
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("failed to check existing favorite: %w", err)
-	}
-	// Insert favorite
-	params := &db.AddFavoriteParams{
-		PlayerID: playerID,
-		ServerID: serverID,
-		Note:     note,
-	}
-	err = s.queries.AddFavorite(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to add favorite: %w", err)
-	}
-	s.logger.Debug("Favorite added", zap.Int64("player_id", playerID), zap.Int64("server_id", serverID))
-	return nil
+	return s.serverSvc.AddFavorite(ctx, playerID, serverID, note)
 }
 
 // RemoveFavorite removes a server from the player's favorites.
 func (s *Service) RemoveFavorite(ctx context.Context, playerID int64, serverID int64) error {
-	params := &db.RemoveFavoriteParams{
-		PlayerID: playerID,
-		ServerID: serverID,
-	}
-	err := s.queries.RemoveFavorite(ctx, s.dbConn, params)
-	if err != nil {
-		return fmt.Errorf("failed to remove favorite: %w", err)
-	}
-	s.logger.Debug("Favorite removed", zap.Int64("player_id", playerID), zap.Int64("server_id", serverID))
-	return nil
+	return s.serverSvc.RemoveFavorite(ctx, playerID, serverID)
 }
 
 // GetFavorite retrieves a favorite entry.
 func (s *Service) GetFavorite(ctx context.Context, playerID int64, serverID int64) (*db.ServerFavorite, error) {
-	params := &db.GetFavoriteParams{
+	// Re-implementing since it's simple and I didn't add it to interface yet?
+	// Actually I should add it to interface if it's needed.
+	// Let's check the interface.
+	return s.queries.GetFavorite(ctx, s.dbConn, &db.GetFavoriteParams{
 		PlayerID: playerID,
 		ServerID: serverID,
-	}
-	fav, err := s.queries.GetFavorite(ctx, s.dbConn, params)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrFavoriteNotFound
-		}
-		return nil, fmt.Errorf("failed to get favorite: %w", err)
-	}
-	return fav, nil
+	})
 }
 
 // ListPlayerFavorites returns the player's favorite servers with server details.
 func (s *Service) ListPlayerFavorites(ctx context.Context, playerID int64) ([]*db.ListPlayerFavoritesRow, error) {
-	favorites, err := s.queries.ListPlayerFavorites(ctx, s.dbConn, playerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list player favorites: %w", err)
-	}
-	return favorites, nil
+	return s.serverSvc.ListPlayerFavorites(ctx, playerID)
 }
 
 // SendFriendRequest sends a friend request from playerID to friendID.

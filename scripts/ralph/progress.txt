@@ -78,3 +78,20 @@ Started: Fri Jan 23 12:23:11 MSK 2026
   - Temporary helpers in the facade service (pkg/auth) can bridge the gap during incremental migration while keeping the public API stable.
   - Domain-specific errors (ErrCosmeticNotFound, etc.) should be defined in the internal service and aliased in the facade to maintain backward compatibility.
 ---
+
+## 2026-01-23 13:35:12 - US-005
+- Migrated Server and Match service logic to internal/services.
+- Implemented MatchService with match storage and reward calculation logic (XP, match stats, data currency).
+- Implemented ServerService with server registration, heartbeats, join tokens, and favorites management.
+- Updated pkg/auth.Service to delegate server and match operations to the new internal services.
+- Refined MatchService to depend on ProgressionService for consistent level/XP calculation during match reward processing.
+- Files changed:
+  - packages/go/server/internal/services/match/implementation.go
+  - packages/go/server/internal/services/server/implementation.go
+  - packages/go/server/pkg/auth/auth.go
+  - packages/go/server/AGENTS.md
+- **Learnings for future iterations:**
+  - When migrating logic that spans multiple domains (like Match rewards affecting Progression), services can depend on each other's interfaces to maintain transactional integrity within the same database.
+  - Using unexported helper methods (like `addMatchRewardsWithTx`) in internal services allows for clean code reuse while keeping the public interface focused.
+  - pkg/auth.Service continues to serve as an effective delegation layer, allowing for a smooth transition to a modular monolith without breaking existing handler consumers.
+---

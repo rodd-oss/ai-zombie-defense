@@ -94,6 +94,20 @@
 - `GenerateLootDrop` selects a random active loot table and entry based on weights
 - Loot tables and entries should be managed via administrative endpoints (coming soon)
 
+## Match Service
+
+- Use `internal/services/match.Service` for match history and statistic persistence
+- `StoreMatchWithStats` handles match creation, player statistics, and reward calculation (XP/Data) in a single transaction
+- Depends on `ProgressionService` for reward processing and XP calculation consistency
+
+## Server Service
+
+- Use `internal/services/server.Service` for dedicated server registry and join tokens
+- `RegisterServer` generates unique authentication tokens for new servers
+- `UpdateServerHeartbeat` tracks server health and player counts
+- `GenerateJoinToken` and `ValidateJoinToken` manage secure player entry into dedicated servers
+- `AddFavorite` and `ListPlayerFavorites` handle player-specific server bookmarks
+
 ## Middleware
 
 - JWT middleware is available in `pkg/middleware.AuthMiddleware`
