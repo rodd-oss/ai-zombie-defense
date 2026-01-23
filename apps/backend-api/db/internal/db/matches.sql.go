@@ -8,7 +8,7 @@ package db
 import (
 	"context"
 
-	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/backend-api/db/types"
 )
 
 const createMatch = `-- name: CreateMatch :one

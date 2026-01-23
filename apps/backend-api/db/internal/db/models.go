@@ -5,7 +5,7 @@
 package db
 
 import (
-	"ai-zombie-defense/db/types"
+	"ai-zombie-defense/backend-api/db/types"
 )
 
 type CosmeticItem struct {

@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"ai-zombie-defense/db/pkg/migrations"
+	"ai-zombie-defense/backend-api/db/pkg/migrations"
 	_ "modernc.org/sqlite"
 )
 

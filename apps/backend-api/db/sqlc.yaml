@@ -31,99 +31,99 @@ sql:
         overrides:
           - column: "players.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "players.last_login_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "NullTimestamp"
           - column: "players.banned_until"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "NullTimestamp"
           - column: "sessions.expires_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "sessions.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "player_progression.updated_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "player_settings.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "player_settings.updated_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "cosmetic_items.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "player_cosmetics.unlocked_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "loadouts.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "loadouts.updated_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "servers.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "matches.start_time"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "matches.end_time"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "NullTimestamp"
           - column: "leaderboard_entries.updated_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "friends.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "friends.updated_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "server_favorites.added_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "loot_tables.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "currency_transactions.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "join_tokens.expires_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "join_tokens.created_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "Timestamp"
           - column: "join_tokens.used_at"
             go_type:
-              import: "ai-zombie-defense/db/types"
+              import: "ai-zombie-defense/backend-api/db/types"
               type: "NullTimestamp"
 
 

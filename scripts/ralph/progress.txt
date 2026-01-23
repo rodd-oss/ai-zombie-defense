@@ -15,3 +15,15 @@ Started: Fri Jan 23 13:54:56 MSK 2026
   - `go.work` needs to be updated manually when moving packages out of their original directories if they were part of the workspace.
   - Initializing an empty module will cause `go build ./...` to warn about no packages, which is expected.
 ---
+
+## 2026-01-23 14:15 - US-002
+- Migrated all database logic from `packages/go/db` to `apps/backend-api/db`.
+- Updated `sqlc.yaml` relative paths and import overrides to use `ai-zombie-defense/backend-api/db`.
+- Refactored all internal imports within the `db` package to use the new module path.
+- Verified with `go build ./...`, `go vet ./...`, and `go test ./...` in `apps/backend-api/db`.
+- Removed original files from `packages/go/db`.
+- **Learnings for future iterations:**
+  - Global search and replace for `ai-zombie-defense/db` to `ai-zombie-defense/backend-api/db` is necessary when moving the package.
+  - `sqlc.yaml` overrides often contain hardcoded import paths that must be updated.
+  - `go mod tidy` in the new app directory will correctly pick up dependencies from the moved files.
+---

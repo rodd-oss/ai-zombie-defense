@@ -1,7 +1,7 @@
 package db
 
 import (
-	internal "ai-zombie-defense/db/internal/db"
+	internal "ai-zombie-defense/backend-api/db/internal/db"
 )
 
 type DBTX = internal.DBTX
